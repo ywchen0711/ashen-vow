@@ -1,0 +1,686 @@
+{
+"chars": {
+"ashguard": [
+0,
+0
+],
+"bard0": [
+48,
+0
+],
+"bard1": [
+96,
+0
+],
+"bard2": [
+144,
+0
+],
+"bard3": [
+192,
+0
+],
+"bard4": [
+240,
+0
+],
+"bard5": [
+288,
+0
+],
+"bard6": [
+336,
+0
+],
+"bard7": [
+384,
+0
+],
+"bluegirl": [
+432,
+0
+],
+"boy": [
+480,
+0
+],
+"conjurer0": [
+528,
+0
+],
+"conjurer1": [
+576,
+0
+],
+"conjurer2": [
+624,
+0
+],
+"conjurer3": [
+672,
+0
+],
+"conjurer4": [
+720,
+0
+],
+"conjurer5": [
+0,
+64
+],
+"conjurer6": [
+48,
+64
+],
+"conjurer7": [
+96,
+64
+],
+"d_bald": [
+144,
+64
+],
+"d_blond": [
+192,
+64
+],
+"d_capped": [
+240,
+64
+],
+"d_helm": [
+288,
+64
+],
+"d_leafy": [
+336,
+64
+],
+"d_oldman": [
+384,
+64
+],
+"d_spiky": [
+432,
+64
+],
+"d_violet": [
+480,
+64
+],
+"devout0": [
+528,
+64
+],
+"devout1": [
+576,
+64
+],
+"devout2": [
+624,
+64
+],
+"devout3": [
+672,
+64
+],
+"devout4": [
+720,
+64
+],
+"devout5": [
+0,
+128
+],
+"devout6": [
+48,
+128
+],
+"devout7": [
+96,
+128
+],
+"drakeling": [
+144,
+128
+],
+"hale": [
+192,
+128
+],
+"hale_dawn": [
+240,
+128
+],
+"king": [
+288,
+128
+],
+"morvane": [
+336,
+128
+],
+"mychars0": [
+384,
+128
+],
+"mychars1": [
+432,
+128
+],
+"mychars2": [
+480,
+128
+],
+"mychars3": [
+528,
+128
+],
+"mychars4": [
+576,
+128
+],
+"mychars5": [
+624,
+128
+],
+"mychars6": [
+672,
+128
+],
+"mychars7": [
+720,
+128
+],
+"ninja": [
+0,
+192
+],
+"popota": [
+48,
+192
+],
+"scout0": [
+96,
+192
+],
+"scout1": [
+144,
+192
+],
+"scout2": [
+192,
+192
+],
+"scout3": [
+240,
+192
+],
+"scout4": [
+288,
+192
+],
+"scout5": [
+336,
+192
+],
+"scout6": [
+384,
+192
+],
+"scout7": [
+432,
+192
+],
+"soldier0": [
+480,
+192
+],
+"soldier1": [
+528,
+192
+],
+"soldier2": [
+576,
+192
+],
+"soldier3": [
+624,
+192
+],
+"soldier4": [
+672,
+192
+],
+"soldier5": [
+720,
+192
+],
+"soldier6": [
+0,
+256
+],
+"soldier7": [
+48,
+256
+]
+},
+"mon": {
+"bluedragon": [
+110,
+87
+],
+"caterwether": [
+44,
+44
+],
+"crab1": [
+86,
+42
+],
+"crab2": [
+86,
+42
+],
+"crab3": [
+86,
+42
+],
+"crab4": [
+86,
+42
+],
+"dragon": [
+110,
+87
+],
+"drecko": [
+66,
+44
+],
+"flogg": [
+61,
+60
+],
+"froggit": [
+36,
+45
+],
+"frogsia": [
+61,
+60
+],
+"golem": [
+72,
+92
+],
+"leogan": [
+66,
+44
+],
+"lepidopteram": [
+46,
+56
+],
+"mothram": [
+45,
+54
+],
+"reddragon": [
+110,
+93
+],
+"scortoise": [
+59,
+42
+],
+"shupa": [
+44,
+44
+],
+"silkwool": [
+45,
+54
+],
+"smudge": [
+38,
+26
+],
+"smudge2": [
+38,
+26
+],
+"smudge3": [
+38,
+26
+],
+"smudge4": [
+41,
+29
+],
+"specko": [
+66,
+44
+],
+"thewoe": [
+44,
+57
+],
+"toadit": [
+36,
+45
+],
+"toadly": [
+61,
+60
+],
+"torpion": [
+59,
+42
+],
+"e_agyvogh": [
+48,
+48
+],
+"e_baacklaal": [
+48,
+48
+],
+"e_krodebb": [
+48,
+48
+],
+"e_lesorbellome": [
+48,
+48
+],
+"e_orcosa": [
+48,
+48
+],
+"e_orragask": [
+48,
+48
+],
+"e_vaughkahn": [
+48,
+48
+],
+"e_dovase": [
+48,
+48
+],
+"e_dreamludd": [
+48,
+48
+],
+"e_glowjester": [
+48,
+48
+],
+"e_lospobsdo": [
+48,
+48
+],
+"e_muldream": [
+48,
+48
+],
+"e_novaram": [
+48,
+48
+],
+"e_shugaeram": [
+48,
+48
+],
+"e_aedalobogg": [
+48,
+48
+],
+"e_ashgaroth": [
+48,
+48
+],
+"e_avamo": [
+48,
+48
+],
+"e_buomarye": [
+48,
+48
+],
+"e_striptoban": [
+48,
+48
+],
+"e_vosaol": [
+48,
+48
+],
+"e_balahozodh": [
+48,
+48
+],
+"e_clerego": [
+48,
+48
+],
+"e_fogwind": [
+48,
+48
+],
+"e_motao": [
+48,
+48
+],
+"e_tinymenhalycid": [
+48,
+48
+],
+"e_tonor": [
+48,
+48
+],
+"e_alcaetalo": [
+48,
+48
+],
+"e_elapoline": [
+48,
+48
+],
+"e_nephorro": [
+48,
+48
+],
+"e_nomatolas": [
+48,
+48
+],
+"e_onodemato": [
+48,
+48
+],
+"e_qonyt": [
+48,
+48
+],
+"e_vedeon": [
+48,
+48
+],
+"e_veravascorr": [
+48,
+48
+],
+"e_groaselora": [
+48,
+48
+],
+"e_loaselora": [
+48,
+48
+],
+"e_malaselora": [
+48,
+48
+],
+"e_poeala": [
+48,
+48
+],
+"e_vascabog": [
+48,
+48
+],
+"e_veragousa": [
+48,
+48
+],
+"e_dhornagg": [
+48,
+48
+],
+"e_kopodano": [
+48,
+48
+],
+"e_orrhoanel": [
+48,
+48
+],
+"e_poblade": [
+48,
+48
+],
+"e_seratpesac": [
+48,
+48
+],
+"e_tinybedo": [
+48,
+48
+],
+"e_voongopa": [
+48,
+48
+],
+"e_elphobella": [
+48,
+48
+],
+"e_erryathys": [
+48,
+48
+],
+"e_greatagulaea": [
+48,
+48
+],
+"e_greyaenodda": [
+48,
+48
+],
+"e_muonille": [
+48,
+48
+],
+"e_skallagine": [
+48,
+48
+],
+"e_tadama": [
+48,
+48
+],
+"e_zuase": [
+48,
+48
+],
+"e_amrodd": [
+48,
+48
+],
+"e_anosith": [
+48,
+48
+],
+"e_bloomegas": [
+48,
+48
+],
+"e_merollith": [
+48,
+48
+],
+"e_romoath": [
+48,
+48
+],
+"e_wapemeroll": [
+48,
+48
+],
+"e_empireus": [
+48,
+48
+],
+"e_ioshoggh": [
+48,
+48
+],
+"e_lavaffough": [
+48,
+48
+],
+"e_nodelugg": [
+48,
+48
+],
+"e_quodh": [
+48,
+48
+],
+"e_ygmytious": [
+48,
+48
+],
+"e_aioln": [
+48,
+48
+],
+"e_amsah": [
+48,
+48
+],
+"e_broodroot": [
+48,
+48
+],
+"e_oddlemudd": [
+48,
+48
+],
+"e_pampana": [
+48,
+48
+],
+"e_pooltree": [
+48,
+48
+],
+"e_strippedlagg": [
+48,
+48
+],
+"e_vexcrisp": [
+48,
+48
+],
+"e_abuozozz": [
+48,
+48
+]
+}
+}
