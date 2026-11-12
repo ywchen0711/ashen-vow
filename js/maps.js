@@ -411,13 +411,13 @@ def('thornby', {
       '$$$.......;;.;.......$$$$$',
       '$$...RRRR..;;...RRRR...$$$',
       '$$...RRRR..;;...RRRR...$$$',
-      '$$...#w##..;;...#d##...$$$',
+      '$$...#w7#..;;...#d##...$$$',
       '$$.........;;..........$$$',
       '$$..T......1;......T...$$$',
       '$$.........;;..........$$$',
       '$$...RRRR..;;...RRRR...$$$',
       '$$...RRRR..;;...RRRR...$$$',
-      '$$...##d#..;;...#w##.2.$$$',
+      '$$...##d#..;;...#w7#.2.$$$',
       '$$.........;;..........$$$',
       '$$..u...........G..u...$$$',
       '$$......3..............$$$',
@@ -434,9 +434,10 @@ def('thornby', {
       '9': save('grass'),
       '<': warp('leafy', 'world', 54, 14, 'd'),
       'B': { k: 'bigtree', e: { type: 'sign', talk: 'elder_tree' } },
+      '7': 'sdoor',
     };
     if (burnt) {
-      Object.assign(lg, { '.': 'ash', ';': 'earth', 'R': 'ash', '#': 'darkbrick', 'w': 'darkbrick', 'd': 'ash', 'T': 'burnt', 'u': 'burnt', 'G': 'grave' });
+      Object.assign(lg, { '.': 'ash', ';': 'earth', 'R': 'ash', '#': 'darkbrick', 'w': 'darkbrick', 'd': 'ash', 'T': 'burnt', 'u': 'burnt', 'G': 'grave', '7': 'darkbrick' });
       lg['1'] = trig('earth', 'thornby_fire', { once: 'thornby_fire_seen', need: (fl) => fl.grayhold_done && !fl.ch2_nyra });
       lg['2'] = npc('ash', 'tb_elder', 'd_oldman', 'tb_elder', { cond: (fl) => fl.trial_open && !fl.dawn, ghost: true });
       lg['3'] = npc('ash', 'tb_ghost', 'bard5', 'tb_ghost', { cond: (fl) => fl.ch2_nyra, ghost: true });
@@ -615,12 +616,12 @@ def('salt', {
     'ssssssYqqqqqqq[[[qqqqqqqYsssssss',
     'ssssssYYYYYYYYq[qYYYYYYYYsssssss',
     'sssssssssssssss=ssssssssssssssss',
-    'ssRRRRssssssssss=sssssssRRRRRsss',
-    'ssRRRRsssssssss=sssssssRRRRRsss.'.slice(0, 32),
+    'ssRRRRsssssssss=ssssssssRRRRRsss',
+    'ssRRRRsssssssss=ssssssssRRRRRsss',
     'ss#d##sssssssss=ssssssss#w#d#sss',
     'sss=sssssssssss=sssssssssss=ssss',
     'sss=============================',
-    'sssssssskkksssss=sssskkksssssss',
+    'ssssssskkksssss=ssssskkksssssss',
     'sssssss+4+sssss=sssss+5+ssssss',
     'sssssssssssssss=ssssssssssssssss',
     'ssLssssssssssss=ssssssssssssLsss',
