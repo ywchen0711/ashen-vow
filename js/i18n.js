@@ -38,5 +38,10 @@ const NAMES = {
   村民: 'Villager', 老人: 'Old Man', 老婦人: 'Old Woman', 小孩: 'Child', 商人: 'Merchant', 旅店老闆: 'Innkeeper', 修女: 'Sister',
   院長: 'Prioress', 漁夫: 'Fisher', 沙爾特王: 'King of Salt', 王子: 'Prince', 學者: 'Scholar', 水手: 'Sailor', 工匠: 'Artisan',
   古棘: 'Elder Thorn', 聲音: 'A Voice', '？？？': '???', 燼月: 'The Ember', 船長: 'Captain', 鐵匠: 'Smith', 守衛長: 'Watch Captain',
+  伊爾賽: 'Ilse', 鐘鳴村的母親: "Ilse's Mother", 柯溫: 'Corwin', 鬥技場主: 'Arena Master', 龍騎賽主持: 'Race Host', 蒼白院長: 'The Pale Prioress',
+  伊索爾德: 'Ysolde', 奧羅: 'Oro', 賽柏: 'Sable', 無名者: 'The Nameless', 奧瑞爾: 'Aurel', 天棧長老: 'Skyreach Elder', 風暴巨鵬: 'Stormroc',
+  女孩: 'Girl', 瑪拉: 'Mara', 農夫: 'Farmer', 隊長: 'Captain', 商隊長: 'Caravan Master', 老記名師: 'Old Namekeeper', 修補匠: 'Tinker',
+  空洞的加瑞克: 'Hollow Garrick', 高文的聲音: "Gowan's Voice", 莫凡的殘響: "Morvane's Echo", 未書者: 'The Unwritten', 鐘魂: 'The Bellwraith',
+  掘寶人: 'Digger', 織女: 'Weaver', 守望者: 'Watcher', 長老: 'Elder', 寂靜之心: 'The Hush', 媽媽的聲音: "Mother's Voice", 霍伯: 'Hob', 侍衛: 'Guard',
 };
 export const speaker = (n) => (n && LANG === 'en' ? NAMES[n] || n : n);

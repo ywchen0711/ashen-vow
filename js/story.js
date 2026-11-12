@@ -416,5 +416,5 @@ def('morvane_final', async (E) => {
   await E.say('海爾', L('曾經，我的劍也只會燃燒。但現在不同了。', 'Once, my sword knew only how to burn. Not anymore.'));
   await E.say('海爾', L('這把劍，是為了守護而揮的！', 'This sword is swung to protect!'));
   await E.battle('ember', { bg: 'well', noRun: true, music: 'potentiam' });
-  await E.ending();
+  await E.emberFalls();
 });

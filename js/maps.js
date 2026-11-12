@@ -13,7 +13,7 @@ const BASE = {
   'F': 'fence', 'G': 'grave', 'L': 'lamp', 'm': 'mossrock', 'v': 'stairs', '^': 'bstairs', 'H': 'sapling', 'f': 'forest', 'C': 'chasm',
 };
 
-function grid(rows, legend = {}, meta = {}) {
+export function grid(rows, legend = {}, meta = {}) {
   const Lg = { ...BASE, ...legend }, h = rows.length, w = Math.max(...rows.map((r) => r.length));
   rows.forEach((r, i) => { if (r.length !== w) throw new Error(`${meta.id} row ${i} is ${r.length} wide, not ${w}`); });
   const ents = [], kinds = [];
@@ -31,23 +31,27 @@ function grid(rows, legend = {}, meta = {}) {
   return { w, h, kindAt: (x, y) => kinds[y][x], ents, ...meta };
 }
 // shorthands for legend entries
-const npc = (k, id, sprite, talk, o = {}) => ({ k, e: { type: 'npc', id, sprite, talk, ...o } });
-const warp = (k, to, tx, ty, dir = 'd', o = {}) => ({ k, e: { type: 'warp', to, tx, ty, dir, ...o } });
-const chest = (k, id, item, n = 1) => ({ k, e: { type: 'chest', id, item, n } });
-const trig = (k, run, o = {}) => ({ k, e: { type: 'trigger', run, ...o } });
-const save = (k) => ({ k, e: { type: 'save' } });
-const both = (k, ...es) => ({ k, e: es });
+export const npc = (k, id, sprite, talk, o = {}) => ({ k, e: { type: 'npc', id, sprite, talk, ...o } });
+export const warp = (k, to, tx, ty, dir = 'd', o = {}) => ({ k, e: { type: 'warp', to, tx, ty, dir, ...o } });
+export const chest = (k, id, item, n = 1) => ({ k, e: { type: 'chest', id, item, n } });
+export const trig = (k, run, o = {}) => ({ k, e: { type: 'trigger', run, ...o } });
+export const save = (k) => ({ k, e: { type: 'save' } });
+export const both = (k, ...es) => ({ k, e: es });
 
 export const MAPS = {};
-const def = (id, o) => { MAPS[id] = { id, ...o }; };
+export const def = (id, o) => { MAPS[id] = { id, ...o }; };
 const nm = (zh, en) => () => L(zh, en);
 
 // =====================================================================================
 // the world
 // =====================================================================================
-export const WORLD = { C: [22, 13], T: [26, 14], M: [30, 10], m: [44, 4], G: [50, 4], H: [54, 13], w1: [52, 19], w2: [52, 22], W: [49, 30], S: [37, 33], P: [30, 40], p: [25, 40], X: [12, 28], K: [9, 42], R: [55, 45] };
+export const WORLD = { C: [22, 13], T: [26, 14], M: [30, 10], m: [44, 4], G: [50, 4], H: [54, 13], w1: [52, 19], w2: [52, 22], W: [49, 30], S: [37, 33], P: [30, 40], p: [25, 40], X: [12, 28], K: [9, 42], R: [55, 45],
+  // Part II
+  Sf: [6, 30], Gw: [80, 50], Rh: [20, 55], Dg: [42, 57], Bl: [78, 10], Bt: [86, 6], Ps: [84, 25] };
+// treasure: [x, y] of each map's buried chest, and what is in it
+export const DIG = [[[33, 22], 'luckycoin'], [[86, 47], 'sagesring'], [[71, 15], 'mindgem'], [[11, 58], 'starshard'], [[3, 37], 'goldmaw']];
 function worldBuild(f) {
-  const w = 64, h = 48;
+  const w = 96, h = 64;
   const g = Array.from({ length: h }, () => Array(w).fill('water'));
   const set = (x, y, k) => { if (x >= 0 && y >= 0 && x < w && y < h) g[y][x] = k; };
   const get = (x, y) => (x >= 0 && y >= 0 && x < w && y < h ? g[y][x] : 'water');
@@ -92,6 +96,29 @@ function worldBuild(f) {
     else if (r < 0.14 && hash(x >> 2, y >> 2, 5) < 0.55) set(x, y, 'forest');
   }
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (get(x, y) === 'sand' && hash(x, y, 13) < 0.05) set(x, y, 'scrub');
+  // ---- the lands of Part II, out past the old maps' edges ----
+  const blob = (x0, y0, x1, y1, k, seed) => {
+    rect(x0, y0, x1, y1, k);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const edge = x === x0 || x === x1 || y === y0 || y === y1;
+      if (edge && hash(x, y, seed) < 0.45) set(x, y, 'water');
+    }
+  };
+  const pool = (cx, cy, rx, ry, k) => { for (let y = cy - ry; y <= cy + ry; y++) for (let x = cx - rx; x <= cx + rx; x++) { const dx = (x - cx) / (rx + 0.4), dy = (y - cy) / (ry + 0.4); if (dx * dx + dy * dy < 1) set(x, y, k); } };
+  // Hollowmere, the grey north
+  blob(68, 3, 91, 19, 'snow', 21);
+  for (let y = 4; y < 19; y++) for (let x = 69; x < 91; x++) { const r = hash(x, y, 22); if (get(x, y) === 'snow' && r < 0.22) set(x, y, r < 0.06 ? 'snowpine' : 'snowforest'); }
+  for (const [x, y] of [[72, 5], [88, 12], [75, 16], [82, 4], [90, 8]]) mount(x, y, x + 1, y + 1, 'snowmount');
+  pool(84, 15, 2, 1, 'ice');
+  blob(82, 23, 86, 27, 'snow', 23);
+  // Emberfall, the burning isle
+  blob(70, 41, 89, 57, 'cinder', 31);
+  pool(76, 46, 2, 1, 'lava'); pool(85, 53, 2, 2, 'lava'); pool(73, 54, 1, 1, 'lava');
+  for (const [x, y] of [[72, 43], [86, 44], [81, 42], [77, 55], [88, 48]]) mount(x, y, x + 1, y + 1, 'ashrock');
+  // Mirefen, the southern swamp
+  blob(6, 50, 49, 61, 'swampgrass', 41);
+  for (let y = 51; y < 61; y++) for (let x = 7; x < 49; x++) { const r = hash(x, y, 42); if (get(x, y) !== 'swampgrass') continue; if (r < 0.1) set(x, y, 'swamp'); else if (r < 0.3) set(x, y, 'swampforest'); }
+  pool(30, 54, 3, 1, 'swamp'); pool(12, 58, 1, 1, 'swamp');
   // the old road from Varn to the cave
   const road = (pts) => { for (let i = 0; i < pts.length - 1; i++) { let [x, y] = pts[i]; const [x1, y1] = pts[i + 1]; while (x !== x1 || y !== y1) { if (get(x, y) !== 'water' && get(x, y) !== 'bridge') set(x, y, 'road'); if (x !== x1) x += Math.sign(x1 - x); else y += Math.sign(y1 - y); } set(x1, y1, 'road'); } };
   road([[22, 14], [22, 15], [27, 15], [30, 15], [30, 11]]);
@@ -103,6 +130,11 @@ function worldBuild(f) {
   place('C', 'i_castle'); place('T', 'i_town'); place('M', 'i_cave'); place('m', 'i_cave'); place('G', 'i_castle');
   place('H', f.thornby_burned ? 'i_ruin' : 'i_town'); place('w1', 'i_cave'); place('w2', 'i_cave'); place('W', 'i_town'); place('S', 'i_shrine');
   place('P', 'i_cave'); place('p', 'i_dcave'); place('X', 'i_dcastle'); place('K', 'i_port'); place('R', 'i_tower');
+  place('Sf', 'i_temple'); place('Gw', 'i_gear'); place('Rh', 'i_mtown'); place('Dg', 'i_mcave'); place('Bl', 'i_snowtown'); place('Bt', 'i_bell');
+  if (f.p2_bell) place('Ps', 'i_pale');
+  // a clear step below every Part II place, and the buried treasure spots stay plain ground
+  for (const k of ['Sf', 'Gw', 'Rh', 'Dg', 'Bl', 'Bt', 'Ps']) { const [x, y] = P[k]; const b = get(x, y + 1); if (['swamp', 'water', 'lava', 'ice', 'snowpine', 'snowforest', 'swampforest', 'ashrock', 'snowmount', 'mount', 'dmount', 'scrub'].includes(b)) set(x, y + 1, y > 40 && x < 60 ? 'swampgrass' : y > 30 && x > 60 ? 'cinder' : x > 60 ? 'snow' : 'sand'); }
+  for (const [[x, y]] of DIG) { const b = get(x, y); if (!['grass', 'sand', 'snow', 'cinder', 'swampgrass'].includes(b)) set(x, y, x > 60 && y < 30 ? 'snow' : x > 60 ? 'cinder' : y >= 48 ? 'swampgrass' : y >= 20 && x <= 25 ? 'sand' : 'grass'); }
   // clear a step around each place
   for (const [x, y] of Object.values(P)) for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { const k = get(x + dx, y + dy); if (k === 'forest') set(x + dx, y + dy, 'grass'); }
   const ents = [];
@@ -111,11 +143,29 @@ function worldBuild(f) {
   wp('G', 'grayhold', 10, 13, 'u'); wp('H', 'thornby', 12, 19, 'u', (fl) => fl.grayhold_done, () => L('荊棘村被濃密的荊棘圍住了，外人進不去。', 'Thornby is ringed by dense thorns. Outsiders cannot enter.')); wp('w1', 'thornwood', 15, 1, 'd', (fl) => fl.ch2_nyra, () => L('荊棘林的樹枝纏得密不透風。', 'The branches of Thornwood are knotted shut.')); wp('w2', 'thornwood', 15, 28, 'u');
   wp('W', 'wenmere', 1, 12, 'r'); wp('S', 'shrine', 13, 25, 'u', (fl) => fl.has_miel, () => L('神殿的門緊緊關著。也許文湖鎮的人知道怎麼進去。', 'The shrine doors are shut fast. Someone in Wenmere may know the way in.')); wp('P', 'drypass', 26, 9, 'l', (fl) => fl.tide_dead, () => L('隘道口被落石堵住了。', 'Fallen rocks block the mouth of the pass.')); wp('p', 'drypass', 1, 9, 'r');
   wp('X', 'salt', 15, 23, 'u'); wp('K', 'kestrel', 15, 1, 'd'); wp('R', 'spire1', 9, 18, 'u');
+  const shut = (zh, en) => () => L(zh, en);
+  wp('Sf', 'sunfire1', 13, 19, 'u', (fl) => fl.p2_sigil, shut('神殿的大門刻著太陽的紋章，緊緊關著。', 'The temple doors bear a sun crest and will not open.'));
+  wp('Gw', 'gearworks1', 15, 19, 'u', (fl) => fl.p2_gwopen, shut('生鏽的鐵門鎖住了。門上刻著「柯溫」。', 'A rusted iron door, locked. "Corwin" is carved on it.'));
+  wp('Rh', 'reedholm', 13, 17, 'u');
+  wp('Dg', 'grotto1', 13, 19, 'u');
+  wp('Bl', 'belltoll', 13, 16, 'u');
+  wp('Bt', 'belltower1', 13, 19, 'u', (fl) => fl.p2_belltoll, shut('鐘樓的門被冰封住了。先去鐘鳴村看看吧。', 'Ice seals the tower door. See the village first.'));
+  if (f.p2_bell) wp('Ps', 'pale1', 13, 19, 'u', (fl) => fl.p2_bell);
   // the closed bridge
   if (!f.bridge_open) ents.push({ type: 'npc', id: 'bridgeguard', sprite: 'soldier0', x: 41, y: 14, dir: 'l', talk: 'bridgeguard', fixed: true });
   return {
     w, h, kindAt: (x, y) => g[y][x], ents, world: true,
+    // the grey mist keeps the airship off the new lands until their time
+    noLand(x, y) {
+      if ((x >= 64 || y >= 48) && !f.p2) return L('濃濃的灰霧籠罩著大地，看不清地面，無法降落。', 'A thick grey mist hides the ground. You cannot land.');
+      if (x >= 64 && y < 30 && !f.p2_sky) return L('北方的島嶼被灰霧團團圍住，鷦鷯號無法穿過。', 'Grey mist walls in the northern isles. The Wren cannot get through.');
+      return null;
+    },
     zone(x, y) {
+      if (x >= 64 && y < 30) return 'snow';
+      if (x >= 64) return 'ember';
+      if (y >= 48) return 'mire';
+      if (f.p2) return x <= 25 && y >= 20 && y < 40 ? 'ddesert' : 'p2world';
       if (f.spire_done) return 'world2';
       if (x <= 25 && y >= 40) return 'coast';
       if (x <= 25 && y >= 20) return 'desert';
@@ -141,7 +191,7 @@ def('varncastle', {
     f.well_open ? 'Q+++++QQbIb]0]bIQQbbbbbQ' : 'Q+++++QQbIb]]]bIQQbbbbbQ',
     'Q++c++QQbbb]]]bbQQbbbCbQ',
     'Q+++++QQbIb]]]bIQQbbbbbQ',
-    'Q+++++QQbbb]]]bbQQbbbbbQ',
+    f.p2_brin ? 'Q+++++QQbbb]]]bbQQ^bbbbQ' : 'Q+++++QQbbb]]]bbQQbbbbbQ',
     'QQQbQQQQbIb]]]bIQQQQbQQQ',
     'QbbbbbbQQQQ]]]QQQQbbbbbQ',
     'Qbbb3bbbbbb]]]bbbbbb4bbQ',
@@ -162,6 +212,7 @@ def('varncastle', {
     '1': { k: 'bluefloor', e: (x, y) => [{ type: 'npc', id: 'king', sprite: 'king', x, y, dir: 'd', talk: 'king', cond: (f) => !f.ch1_done || f.king_freed }, { type: 'npc', id: 'morvane', sprite: 'morvane', x: x + 2, y: y + 1, dir: 'd', talk: 'morvane_hall', cond: (f) => !f.ch1_done }] },
     '9': save('bluefloor'),
     '0': warp('bstairs', 'well1', 11, 2, 'd'),
+    '^': warp('bstairs', 'barracks1', 13, 19, 'u', { need: (fl) => fl.p2_brin, msg: () => L('兵營的門鎖著。', 'The barracks door is locked.') }),
     'c': chest('plank', 'vc_room', 'potion', 3),
     'C': chest('bluefloor', 'vc_store', 'phoenix', 1),
     '3': npc('bluefloor', 'maid', 'mychars5', 'c_maid', { wander: true }),
@@ -223,10 +274,11 @@ def('well2', {
     '&&&&&&&&&ooooooo&&&&&&&&',
     '&&&&&&&&&ooooooo&&&&&&&&',
     '&&&&&&&&&ooo5ooo&&&&&&&&',
-    '&&&&&&&&&ooooooo&&&&&&&&',
+    f.cleared ? '&&&&&&&&&ooo^ooo&&&&&&&&' : '&&&&&&&&&ooooooo&&&&&&&&',
     '&&&&&&&&&&&&&&&&&&&&&&&&',
   ], {
-    '<': warp('darkrock', 'well1', 12, 16, 'd'),
+    '^': warp('bstairs', 'abyss1', 15, 21, 'u'),
+    '<': warp('darkrock', 'well1', 12, 18, 'd'),
     '1': chest('darkrock', 'w2_a', 'oathkeeper'),
     '3': chest('darkrock', 'w2_b', 'ribbon'),
     '9': save('darkrock'),
@@ -323,7 +375,7 @@ def('grayhold', {
   build: (f) => grid([
     'XXXXXXXXXXXXXXXXXXXX',
     'XjXXXXXXjXXjXXXXXXjX',
-    'Xcccccccccc1cccccccX',
+    f.p2 ? 'Xcccccccccc^cccccccX' : 'Xcccccccccc1cccccccX',
     'XcIcccccccccccccIccX',
     'Xcccc2cc[[[[cc3ccccX',
     'XcIccccc[[[[ccccIccX',
@@ -341,6 +393,7 @@ def('grayhold', {
     '2': npc('cobble', 'gh_soldier1', 'ashguard', 'gh_soldier', { cond: (f) => !f.grayhold_done }),
     '3': npc('cobble', 'gh_soldier2', 'ashguard', 'gh_soldier', { cond: (f) => !f.grayhold_done }),
     '<': warp('grass', 'world', 50, 5, 'd'),
+    '^': warp('stairs', 'keep1', 13, 19, 'u', { need: (fl) => fl.p2_wind, msg: () => L('通往內城的樓梯被荊棘堵住了。', 'Thorns choke the stairs to the keep.') }),
   }, { id: 'grayhold' }),
 });
 
@@ -481,10 +534,10 @@ def('wenmere', {
 });
 def('shrine', {
   name: nm('沉沒神殿', 'The Sunken Shrine'), music: 'sanctuary',
-  build: () => grid([
+  build: (f) => grid([
     'QQQQQQQQQQQQQQQQQQQQQQQQQQQ',
     'QjQQQQQQQQQQjQQQQQQQQQQQjQQ',
-    'Q~~~~~~~~~~qqq~~~~~~~~~~~qQ',
+    f.p2 ? 'Q~~~~~~~~~~^qq~~~~~~~~~~~qQ' : 'Q~~~~~~~~~~qqq~~~~~~~~~~~qQ',
     'Q~qqqqqqq~~qBq~~qqqqqqqq~qQ',
     'Q~q~~~~~q~~qqq~~q~~~~~~q~qQ',
     'Q~q~1qq~q~~~q~~~q~qqq2~q~qQ',
@@ -511,7 +564,9 @@ def('shrine', {
     'QQQQQQQQQQQQQ<QQQQQQQQQQQQQ',
   ], {
     '<': warp('bluetile', 'world', 37, 34, 'd'),
+    '^': warp('bstairs', 'cloister1', 13, 19, 'u'),
     '1': chest('bluetile', 'sh_a', 'icerod'),
+
     '2': chest('bluetile', 'sh_b', 'hipotion', 2),
     '3': chest('bluetile', 'sh_c', 'healstaff'),
     '9': save('bluetile'),

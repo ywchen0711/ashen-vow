@@ -4,14 +4,18 @@ import * as gfx from './gfx.js';
 import { input, pollInput, endInput, setupTouch } from './input.js';
 import { initAudio, playMusic, stopMusic, sfx, currentSong } from './audio.js';
 import { UI, uiTick, say, talk, ask, wait, menu, notice } from './ui.js';
-import { S, reset, addMember, removeMember, addItem, fullHeal, save, load, hasSave, setSpellNamer, stats, member, spriteOf, heroName } from './party.js';
-import { SPELLS, ZONES, BOSSES, BG, nm } from './data.js';
-import { MAPS, WORLD } from './maps.js';
+import { S, reset, resetPlus, addMember, removeMember, addItem, fullHeal, save, load, hasSave, saveInfo, setSpellNamer, stats, member, spriteOf, heroName } from './party.js';
+import { SPELLS, ZONES, BOSSES, BG, ITEMS, nm } from './data.js';
+import { MAPS, WORLD, DIG } from './maps.js';
+import './maps2.js';
+import { arena, race, forge, beastPrizes, digAt } from './systems.js';
+import './story2.js';
 import { F, setMaps, loadMap, updateField, drawField, walkEnt, walkPlayer, findEnt, solidAt } from './field.js';
 import { startBattle, updateBattle, drawBattle, _B, settings as bset } from './battle.js';
 import { fieldMenu, shop, loadSettings } from './menu.js';
 import { SCRIPTS } from './story.js';
 import { sprite } from './sprites.js';
+import { solidKind } from './tiles.js';
 import { L, LANG, isEn, setLang, onLang } from './i18n.js';
 
 setMaps(MAPS);
@@ -76,6 +80,10 @@ const E = {
   },
   shop,
   battle: (troop, opts) => runBattle(troop, opts),
+  arena: () => arena(E), race: () => race(E), forge: () => forge(E), beastPrizes: () => beastPrizes(E),
+  has: (id) => S.members.some((m) => m.id === id),
+  setShip(map, x, y) { S.ship = { map, x, y }; },
+  scene: (s) => { scene = s; },
   removeEnt(x) { const e = typeof x === 'string' ? findEnt(x) : x; if (e) e.gone = true; },
   spawn(e) { const o = { px: e.x * 16, py: e.y * 16, ...e }; F.ents.push(o); return o; },
   flash(col, n) { FX.flash = n; FX.flashN = n; FX.flashCol = col; return wait(Math.ceil(n / 2)); },
@@ -83,6 +91,7 @@ const E = {
   async fadeOut() { await trans('out', 30); },
   async warp(to, x, y, dir, keepDark) { await warpTo(to, x, y, dir, keepDark); },
   ending: () => ending(),
+  emberFalls: () => emberFalls(),
 };
 F.E = E;
 F.runScript = async (name, ent) => {
@@ -110,7 +119,38 @@ F.onEncounter = async (zone) => {
   const table = ZONES[zone], total = table.reduce((s, [w]) => s + w, 0);
   let r = Math.random() * total, troop = table[0][1];
   for (const [w, t] of table) { r -= w; if (r <= 0) { troop = t; break; } }
-  await runBattle(troop, { bg: BG[zone], preempt: Math.random() < 0.06 });
+  const first = S.members.some((m) => m.hp > 0 && stats(m).pass.has('firststrike'));
+  await runBattle(troop, { bg: BG[zone], preempt: Math.random() < (first ? 0.25 : 0.06) });
+  F.busy = false;
+};
+// the upgraded Wren climbs to the Cloud Sea and back down, staying over the same spot
+F.onAltitude = async () => {
+  F.busy = true;
+  const up = !F.def.sky, x = F.p.x, y = F.p.y;
+  sfx('warp');
+  await trans('out', 20, '#ffffff');
+  F.flying = true;
+  loadMap(up ? 'sky' : 'world', x, y, F.p.dir);
+  F.flying = true;
+  playMusic('airship');
+  await trans('in', 20, '#ffffff');
+  F.busy = false;
+};
+F.onNoLand = async (why) => { F.busy = true; await say(null, why); F.busy = false; };
+// digging with the treasure spade
+F.onDig = async (x, y) => {
+  F.busy = true;
+  sfx('bump');
+  const i = digAt(x, y);
+  if (i < 0) { await say(null, L('挖了一會兒……什麼也沒有。', 'You dig for a while... nothing.')); F.busy = false; return; }
+  S.flags['dug' + (i + 1)] = true;
+  const prize = DIG[i][1];
+  if (prize === 'goldmaw') {
+    await say(null, L('鏟子敲到了什麼硬硬的東西……是一隻巨大的金色螃蟹！', 'The spade strikes something hard... a gigantic golden crab!'));
+    await runBattle('goldmaw', { bg: 'desert' });
+    sfx('chest'); addItem('giantbelt'); S.gold += 20000;
+    await say(null, L('螃蟹守著的寶箱裡有「巨人腰帶」和 20000 金幣！', "The chest the crab guarded holds a Giant's Belt and 20000 gold!"));
+  } else { sfx('chest'); addItem(prize); await say(null, L(`挖到了寶箱！得到了「${nm(ITEMS[prize])}」！`, `You dig up a chest! Found ${nm(ITEMS[prize])}!`)); }
   F.busy = false;
 };
 F.onStep = () => {
@@ -136,7 +176,8 @@ async function runBattle(troop, opts = {}) {
   scene = 'battle';
   T.dark = 0;
   const r = await startBattle(troop, opts);
-  if (r === 'lose') { gameOver(); return new Promise(() => {}); }
+  if (r === 'lose' && opts.noGameOver) { for (const m of S.members) if (m.hp <= 0) m.hp = 1; }
+  else if (r === 'lose') { gameOver(); return new Promise(() => {}); }
   scene = 'field';
   T.dark = 1;
   playMusic(F.flying ? 'airship' : mapMusic(), { restart: true });
@@ -158,12 +199,18 @@ function updateTitle() {
     sfx('ok');
     const id = opts[title.sel].id;
     if (id === 'new') newGame();
+    else if (id === 'plus') newGame(true);
     else if (id === 'lang') setLang(LANG === 'en' ? 'zh' : 'en');
     else continueGame();
   }
   if (input.pressed('b')) title.ready = false;
 }
-const titleOpts = () => [{ id: 'new', label: L('新的旅程', 'New Game') }, { id: 'cont', label: L('繼續旅程', 'Continue'), disabled: !hasSave(0) }, { id: 'lang', label: LANG === 'en' ? 'Language: English' : '語言：中文' }];
+const titleOpts = () => {
+  const o = [{ id: 'new', label: L('新的旅程', 'New Game') }, { id: 'cont', label: L('繼續旅程', 'Continue'), disabled: !hasSave(0) }];
+  if (hasSave(1)) o.push({ id: 'plus', label: L('再一次的旅程（繼承）', 'New Game+') });
+  o.push({ id: 'lang', label: LANG === 'en' ? 'Language: English' : '語言：中文' });
+  return o;
+};
 function bigText(s, x, y, top, bot, scale = 2) {
   const w = textW(s) + 4, c = canvas(w, 16);
   c.x.drawImage(gfx.glyphs(s, '#ffffff'), 1, 0);
@@ -205,9 +252,10 @@ function drawTitle() {
     text(L('Z 決定　X 取消　C 選單', 'Z: OK   X: Cancel   C: Menu'), W / 2, 196, '#a0a0c0', { align: 'center' });
   } else {
     const opts = titleOpts();
-    windowBox(64, 136, 128, 62);
-    opts.forEach((o, i) => text(o.label, 88, 143 + i * 17, o.disabled ? '#8088a8' : '#f8f8f8'));
-    ctx.drawImage(HAND, 72 + ((t >> 3) % 2), 144 + title.sel * 17);
+    const bw = Math.max(128, ...opts.map((o) => textW(o.label) + 40)), by = 136 - (opts.length - 3) * 17;
+    windowBox(W / 2 - bw / 2, by, bw, 11 + opts.length * 17);
+    opts.forEach((o, i) => text(o.label, W / 2 - bw / 2 + 24, by + 7 + i * 17, o.disabled ? '#8088a8' : '#f8f8f8'));
+    ctx.drawImage(HAND, W / 2 - bw / 2 + 8 + ((t >> 3) % 2), by + 8 + title.sel * 17);
   }
   text(L('© 2026 原創作品', '© 2026 An original game'), W / 2, H - 14, '#7c7ca0', { align: 'center', shadow: null });
 }
@@ -237,9 +285,9 @@ const PRO = () => (isEn() ? [
   '把泉鏡一枚一枚地奪了回來……',
 ]);
 const intro = { t: 0 };
-async function newGame() {
+async function newGame(plus = false) {
   await trans('out', 30);
-  reset();
+  if (plus) { const old = saveInfo(1); reset(); if (old) resetPlus(old); } else reset();
   addMember('hale', 1);
   scene = 'intro'; intro.t = 0; intro.leaving = false;
   playMusic('prelude', { restart: true });
@@ -304,14 +352,15 @@ function drawOver() {
 }
 
 // ---------- ending ----------
-async function ending() {
+// the end of Part I: the Ember goes out, and the story carries on into Part II (story2.js)
+async function emberFalls() {
   stopMusic(1);
   F.shake = 40; sfx('boom');
   await say('燼月', L('……這些微小的光……怎麼……如此……', '...These little lights... how can they... be so...'));
   for (let i = 0; i < 4; i++) { E.flash('#ffffff', 12); sfx('boom'); F.shake = 20; await wait(26); }
   await trans('out', 60, '#ffffff');
   T.col = '#ffffff';
-  S.flags.cleared = true;
+  S.flags.ember_dead = true;
   loadMap('varncastle', 11, 16, 'u');
   F.banner = 0;
   for (const e of F.ents) if (e.type === 'npc') e.gone = true;
@@ -325,31 +374,66 @@ async function ending() {
   await say('亞爾多斯王', L('海爾。你們做到了。……瓦恩欠你們的，是一輩子也還不清的。', 'Hale. You did it. ...Varn owes you a debt it can never repay.'));
   await say('亞爾多斯王', L('我想重新成立灰衛隊。不，是「曙衛隊」。由你來帶領。', 'I want to raise the Ashguard again. No: the Dawnguard. And I want you to lead it.'));
   await say('海爾', L('……陛下，我想先去一趟荊棘村。還有文湖。我欠那裡的人，太多了。', '...Your Majesty, first I want to go to Thornby. And to Wenmere. I owe the people there too much.'));
-  if (member('nyra')) await say('奈菈', L('荊棘村要重建了。古棘說，燒過的土地，明年春天會長出更多的花。', 'Thornby will be rebuilt. The Elder Thorn says burned earth grows more flowers the next spring.'));
-  if (member('miel')) await say('蜜兒', L('伊索爾德院長……我好像，終於做到了「不要恨」。', 'Prioress Ysolde... I think I finally managed it. Not to hate.'));
-  if (member('brin')) await say('布琳', L('欸，海爾。這次換我請客吧。說好的那一杯。', "Hey, Hale. My treat this time. That drink we promised."));
-  if (member('dorrin')) await say('朵琳', L('鷦鷯號下一次要飛得更高！高文爺爺的星星，我要親眼去看看。', "Next time the Wren flies higher! I want to see Grandpa Gowan's star with my own eyes."));
-  if (member('tal')) await say('塔爾', L('泉鏡要一枚一枚送回原來的地方。這一次，換我們來跑腿了。', "The lenses have to go back where they came from, one by one. This time we're the errand runners."));
   await say(null, L('那天晚上，夜空中多了一顆特別亮的星星。\n大家都說，那是高文。', 'That night there was one especially bright star in the sky.\nEveryone said it was Gowan.'));
+  await wait(30);
+  await trans('out', 60);
+  await SCRIPTS.part2_begin(E);
+}
+// the true end, after the Hush
+async function ending() {
+  stopMusic(1);
+  await trans('out', 60, '#ffffff');
+  T.col = '#ffffff';
+  S.flags.cleared = true; S.flags.p2_end = true;
+  loadMap('belltoll', 13, 12, 'u');
+  F.banner = 0;
+  playMusic('reunion');
+  await trans('in', 60, '#ffffff');
+  T.col = '#000';
+  await wait(30);
+  await say(null, L('鈴聲傳遍了整片大地。灰霧一點一點地散開，被拿走的名字，一個一個回到了人們的嘴邊。', 'The bell rang out over the whole land. Little by little the grey mist lifted, and the names that had been taken came back, one by one, to people\'s lips.'));
+  await say('伊爾賽', L('……媽媽。是我，伊爾賽。', '...Mother. It\'s me. Ilse.'));
+  await say('鐘鳴村的母親', L('伊爾賽……我的伊爾賽。我好像做了一個好長、好冷的夢。', 'Ilse... my Ilse. I think I had a long, cold dream.'));
+  if (member('dorrin')) { await say('朵琳', L('……老爸？', '...Dad?')); await say('柯溫', L('朵琳……你長這麼大了。對不起，我連你的名字都忘了好久。', 'Dorrin... look how you\'ve grown. I\'m sorry. For so long I couldn\'t even remember your name.')); await say('朵琳', L('笨蛋老爸。……鷦鷯號，我修好了喔。', 'Stupid old man. ...I fixed the Wren, you know.')); }
+  await trans('out', 40);
+  loadMap('varncastle', 11, 16, 'u');
+  F.banner = 0;
+  for (const e of F.ents) if (e.type === 'npc') e.gone = true;
+  const npc = (id, sp, x, y, dir) => E.spawn({ type: 'npc', id, sprite: sp, x, y, dir });
+  npc('e_king', 'king', 12, 13, 'd'); npc('e_maid', 'mychars5', 9, 14, 'd'); npc('e_g', 'soldier0', 15, 14, 'd');
+  await trans('in', 40);
+  await say(null, L('一個月後，瓦恩城。', 'A month later, Castle Varn.'));
+  await say('亞爾多斯王', L('曙衛隊長海爾。今天，我們在城門前立了一塊石碑。上面刻著所有在這段日子裡失去的人的名字。', 'Captain Hale of the Dawnguard. Today we raised a stone before the castle gate. On it are the names of everyone we lost in these days.'));
+  await say('海爾', L('伊索爾德院長、荊棘村的人們、加瑞克、奧羅師父……還有灰衛隊的四十人。', 'Prioress Ysolde, the people of Thornby, Garrick, Master Oro... and the forty of the Ashguard.'));
+  await say('海爾', L('還有高文。和奧瑞爾。', 'And Gowan. And Aurel.'));
+  if (member('nyra')) await say('奈菈', L('記得一個人，有時候會很痛。可是忘掉，就等於讓他們再死一次。', 'Remembering someone can hurt. But forgetting them is letting them die all over again.'));
+  if (member('miel')) await say('蜜兒', L('院長說「不要恨他們」。我想，她也想說「不要忘了他們」。', 'The prioress said, "Don\'t hate them." I think she also meant, "Don\'t forget them."'));
+  if (member('brin')) await say('布琳', L('那一杯，這次真的要喝了。我請客，誰都不准跑。', 'That drink. This time we\'re really having it. My treat, and nobody runs off.'));
+  if (member('tal')) await say('塔爾', L('師父，泉鏡都回到原處了。我會好好守著它們。', 'Master, the lenses are all back where they belong. I will guard them well.'));
+  if (member('ilse')) await say('伊爾賽', L('我會留在鐘鳴村，替大家記住每一個名字。……也包括你們的。', 'I\'ll stay in Belltoll and keep every name. ...Yours too.'));
+  await say(null, L('那天晚上，夜空中那顆特別亮的星星旁邊，又多了一顆小小的星星。', 'That night, beside the especially bright star, a small new star appeared.'));
   await wait(40);
   await trans('out', 60);
   scene = 'credits'; credits.t = 0;
   playMusic('finale', { restart: true });
   T.dark = 0;
-  save(1);
+  // the cleared game: it carries on at Castle Varn (the Abyss is open), and seeds New Game+
+  S.map = 'varncastle'; S.x = 11; S.y = 16; S.dir = 'u'; S.ship = { map: 'world', x: 22, y: 16 };
+  fullHeal();
+  save(1); save(0);
 }
 const CREDITS = () => (isEn() ? [
   ['THE ASHEN VOW', 'big'], ['灰誓騎士'], [''], [''],
-  ['- CAST -', 'y'], ['Hale, the Ashen Knight'], ['Brin, lancer of Varn'], ['Nyra, caller of Thornby'], ['Miel, acolyte of Wenmere'], ['Gowan, the old sage'], ['Tal, monk of Salt'], ['Dorrin, artisan of Kestrel'], [''],
-  ['King Aldous   Garrick   Morvane'], ['and the Ember Heart'], [''], [''],
-  ['- ART -', 'y'], ['Characters and monsters: Ctske,'], ['Erbarlow, devurandom'], ['Monsters: Emerald (Heather Harvey),'], ['NES colours by ImogiaGames'], ['Tiles: Demetrius (Nestor), devurandom'], ['Icons: ETTiNGRiNDER'], [''],
+  ['- CAST -', 'y'], ['Hale, the Ashen Knight'], ['Brin, lancer of Varn'], ['Nyra, caller of Thornby'], ['Miel, acolyte of Wenmere'], ['Gowan, the old sage'], ['Tal, monk of Salt'], ['Dorrin, artisan of Kestrel'], ['Ilse, Namekeeper of Belltoll'], [''],
+  ['King Aldous   Garrick   Morvane'], ['Prioress Ysolde   Master Oro'], ['Corwin   Sable   Raszh'], ['the Ember Heart'], ['Aurel, the Nameless'], ['and the Hush'], [''], [''],
+  ['- ART -', 'y'], ['Characters and monsters: Ctske,'], ['Erbarlow, devurandom'], ['Monsters: Emerald (Heather Harvey),'], ['NES colours by ImogiaGames'], ['More monsters: Redshrike,'], ['NES version by devurandom;'], ['ImogiaGames (after Redshrike, Balmer,'], ['MoikMellah, Umplix, codeinfernogames,'], ['devnewton, titleknown, artisticdude,'], ['Spring Spring, Technopeasant)'], ['Tiles: Demetrius (Nestor), devurandom'], ['Icons: ETTiNGRiNDER'], [''],
   ['- MUSIC -', 'y'], ['"Generic 8-bit JRPG Soundtrack"'], ['by AVGVSTA (CC-BY)'], [''], ['Font: Cubic 11'], ['Hosted by OpenGameArt.org'], [''], [''],
   ['THANK YOU FOR PLAYING!', 'y'], [''], [''], ['THE END', 'big'],
 ] : [
   ['灰誓騎士', 'big'], ['THE ASHEN VOW'], [''], [''],
-  ['— 登場人物 —', 'y'], ['海爾　灰誓騎士'], ['布琳　瓦恩的槍騎士'], ['奈菈　荊棘村的喚靈師'], ['蜜兒　文湖的見習修女'], ['高文　老賢者'], ['塔爾　沙爾特的武僧'], ['朵琳　紅隼港的機巧師'], [''],
-  ['亞爾多斯王　加瑞克　莫凡'], ['以及　燼月之心'], [''], [''],
-  ['— 美術 —', 'y'], ['人物與怪物：Ctske、Erbarlow、devurandom'], ['怪物：Emerald (Heather Harvey)'], ['NES 配色：ImogiaGames'], ['地圖：Demetrius (Nestor)、devurandom'], ['圖示：ETTiNGRiNDER'], [''],
+  ['— 登場人物 —', 'y'], ['海爾　灰誓騎士'], ['布琳　瓦恩的槍騎士'], ['奈菈　荊棘村的喚靈師'], ['蜜兒　文湖的見習修女'], ['高文　老賢者'], ['塔爾　沙爾特的武僧'], ['朵琳　紅隼港的機巧師'], ['伊爾賽　鐘鳴村的記名師'], [''],
+  ['亞爾多斯王　加瑞克　莫凡'], ['伊索爾德院長　奧羅師父'], ['柯溫　賽柏　拉什'], ['燼月之心'], ['無名者奧瑞爾'], ['以及　寂靜之心'], [''], [''],
+  ['— 美術 —', 'y'], ['人物與怪物：Ctske、Erbarlow、devurandom'], ['怪物：Emerald (Heather Harvey)'], ['NES 配色：ImogiaGames'], ['更多怪物：Redshrike'], ['（NES 版：devurandom）'], ['ImogiaGames（改編自 Redshrike、Balmer、'], ['MoikMellah、Umplix、codeinfernogames、'], ['devnewton、titleknown、artisticdude、'], ['Spring Spring、Technopeasant）'], ['地圖：Demetrius (Nestor)、devurandom'], ['圖示：ETTiNGRiNDER'], [''],
   ['— 音樂 —', 'y'], ['「Generic 8-bit JRPG Soundtrack」'], ['AVGVSTA (CC-BY)'], [''], ['字型：俐方體11號 (Cubic 11)'], ['素材來自 OpenGameArt.org'], [''], [''],
   ['感謝你的遊玩！', 'y'], [''], [''], ['—— 完 ——', 'big'],
 ]);
@@ -431,8 +515,9 @@ boot();
 
 // hooks for automated checks
 Object.assign(G, {
-  solidAt, T, newGame, continueGame, loadMap, trans, runBattle, E, addMember, stats, fullHeal, WORLD, MAPS,
-  go(map, x, y, dir = 'd') { scene = 'field'; T.dark = 0; F.flying = false; loadMap(map, x, y, dir); playMusic(MAPS[map].music); },
+  solidAt, solidKind, T, newGame, continueGame, loadMap, trans, runBattle, E, addMember, stats, fullHeal, WORLD, MAPS, DIG,
+  go(map, x, y, dir = 'd') { scene = 'field'; T.dark = 0; F.flying = !!(MAPS[map].sky); loadMap(map, x, y, dir); playMusic(MAPS[map].music); },
+
   setScene(s) { scene = s; },
   async sim(troop, opts = {}) { if (typeof troop === 'string') troop = BOSSES[troop]; scene = 'battle'; T.dark = 0; const r = await startBattle(troop, opts); scene = 'field'; return r; },
   uiActive: () => UI.active,

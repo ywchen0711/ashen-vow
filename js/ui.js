@@ -11,6 +11,7 @@ export const UI = {
   update() { const t = stack[stack.length - 1]; if (t) t.update(); },
   draw() { for (const w of stack) w.draw(); },
   clear() { stack.length = 0; },
+  _stack: stack,
 };
 let frame = 0;
 export function uiTick() { frame++; }

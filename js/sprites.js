@@ -28,7 +28,8 @@ const monImg = new Map();
 async function loadMon(k) { if (!monImg.has(k)) monImg.set(k, await img('assets/mon/' + k + '.png')); return monImg.get(k); }
 export async function preloadMon(keys) { await Promise.all(keys.map(loadMon)); }
 export const monSize = (k) => META.mon[k] || [48, 48];
-export const isStrip = (k) => k.startsWith('e_');
+// strips: Emerald's 48x48 four-pose monsters, and the expansion's [w, h, frames] sheets
+export const isStrip = (k) => k.startsWith('e_') || (META.mon[k] && META.mon[k].length === 3);
 
 // recolour by turning the hue (degrees) and scaling saturation/brightness, DQ style
 function hsl(r, g, b) {
@@ -67,7 +68,7 @@ export function monArt(k, look) {
   const im = monImg.get(k);
   if (!im) return null;
   const frames = [];
-  if (isStrip(k)) for (let f = 0; f < 4; f++) { const c = canvas(48, 48); c.x.drawImage(im, f * 48, 0, 48, 48, 0, 0, 48, 48); frames.push(look ? recolor(c, look) : c); }
+  if (isStrip(k)) { const [fw, fh, n] = META.mon[k] && META.mon[k].length === 3 ? META.mon[k] : [48, 48, 4]; for (let f = 0; f < n; f++) { const c = canvas(fw, fh); c.x.drawImage(im, f * fw, 0, fw, fh, 0, 0, fw, fh); frames.push(look ? recolor(c, look) : c); } }
   else { const c = canvas(im.width, im.height); c.x.drawImage(im, 0, 0); frames.push(look ? recolor(c, look) : c); }
   cache.set(id, frames);
   return frames;

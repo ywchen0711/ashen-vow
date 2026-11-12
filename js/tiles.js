@@ -3,6 +3,7 @@
 // objects on magenta. The desert, the grey castle stone and the bridges are from devurandom's 8-bit
 // RPG tile set (CC0). The little world-map buildings are drawn here in the same NES colours.
 import { canvas, fromGrid } from './gfx.js';
+import { recolor } from './sprites.js';
 
 async function img(src) { const i = new Image(); i.src = src; await i.decode(); return i; }
 function keyed(im) {
@@ -109,6 +110,42 @@ const ICON = {
     '................',
     '................',
   ].map((r) => r.replace(' ', 'o')), P),
+  bell: fromGrid([
+    '.......oo.......',
+    '......oWWo......',
+    '.....oWWWWo.....',
+    '....ooooooo.....',
+    '....owyyywo.....',
+    '....oyyyyyo.....',
+    '....owyoywo.....',
+    '....ooooooo.....',
+    '....owwgwwo.....',
+    '....owwwwwo.....',
+    '....owgwwgo.....',
+    '...owwwwwwwo....',
+    '...owwwokwwo....',
+    '..owwwwokwwwo...',
+    '..ooooooooooo...',
+    '................',
+  ], P),
+  skytown: fromGrid([
+    '................',
+    '.....oo.........',
+    '....oyyo....oo..',
+    '...oyyyyo..oBBo.',
+    '..oyyyyyyooBBBBo',
+    '..owwwwwwoowwwwo',
+    '..owoowwwoowoowo',
+    '..owokwwwoowwwwo',
+    '..oooooooooooooo',
+    '.oWWWWWWWWWWWWWo',
+    'oWWBWWWWBWWWWBWWo'.slice(0, 16),
+    '.oWWWWWWWWWWWWo.',
+    '..oooWWWWWWooo..',
+    '.....oooooo.....',
+    '................',
+    '................',
+  ], P),
   ship: fromGrid([
     '................',
     '.......o........',
@@ -195,7 +232,37 @@ const T = {
   dmount: { base: 'sand', o4: [26, 1], solid: true }, scrub: { base: 'sand', o: [20, 14], solid: false },
   ash: { t: [16, 7] }, burnt: { base: 'ash', o: [18, 12], solid: true }, ember: { base: 'ash', o: [23, 15] },
 };
+// ---------- tiles recoloured from the ones above, for the snowy north, the swamp, the volcano and the sky ----------
+const R = (of, look, o = {}) => ({ of, look, ...o });
+Object.assign(T, {
+  snow: R('grass', { hue: 100, sat: 0.1, lum: 5.8 }), snowfield: R('grass2', { hue: 100, sat: 0.1, lum: 4.5 }),
+  snowforest: R('forest', { hue: 110, sat: 0.2, lum: 4.5 }), snowtree: R('tree', { hue: 110, sat: 0.2, lum: 4.5 }, { solid: true }),
+  snowpine: R('pine', { hue: 110, sat: 0.25, lum: 3.4 }, { solid: true }), snowmount: R('mount', { hue: 180, sat: 0.12, lum: 2.3 }, { solid: true }),
+  ice: R('water', { hue: 10, sat: 0.35, lum: 1.7 }, { solid: true }), icefloor: R('bluetile', { sat: 0.4, lum: 1.5 }), icewall: R('bluewall', { sat: 0.35, lum: 1.45 }, { solid: true }),
+  lava: R('water', { hue: 180, sat: 1.6, lum: 0.85 }, { solid: true }), ashrock: R('mount', { hue: 0, sat: 0.2, lum: 0.55 }, { solid: true }),
+  cinder: R('earth', { hue: -20, sat: 0.6, lum: 0.6 }), cinderwall: R('cave', { hue: -25, sat: 1.2, lum: 0.9 }, { solid: true }),
+  swamp: R('water', { hue: -105, sat: 0.5, lum: 0.5 }, { solid: true }), swampgrass: R('grass', { hue: -25, sat: 0.55, lum: 1.2 }),
+  bog: R('leafy', { hue: -30, sat: 0.6, lum: 0.7 }), swamptree: R('tree', { hue: -30, sat: 0.6, lum: 0.7 }, { solid: true }), swampforest: R('forest', { hue: -30, sat: 0.6, lum: 0.7 }),
+  cloud: R('water', { hue: 0, sat: 0.2, lum: 1.15 }, { solid: true }), skygrass: R('grass', { hue: 25, sat: 1.0, lum: 2.6 }), skyflowers: R('flowers', { hue: 25, sat: 1.0, lum: 1.5 }),
+  skymount: R('mount', { hue: 30, sat: 1.0, lum: 1.25 }, { solid: true }),
+  paletile: R('whitefloor', { sat: 0.15, lum: 1.05 }), palewall: R('bluewall', { sat: 0.08, lum: 1.5 }, { solid: true }), palepillar: R('pillar', { sat: 0.1, lum: 1.4 }, { solid: true }),
+  palestone: R('rockfloor', { sat: 0.1, lum: 1.6 }), paleglass: R('water', { sat: 0.1, lum: 1.9 }, { solid: true }),
+  drownfloor: R('bluetile', { hue: 20, sat: 0.9, lum: 0.75 }), drownwall: R('bluewall2', { hue: 20, sat: 0.9, lum: 0.75 }, { solid: true }), coral: R('mossrock', { hue: 160, sat: 1.4 }, { solid: true }),
+  rootfloor: R('earth', { hue: 40, sat: 0.7, lum: 0.75 }), rootwall: R('woods', { hue: 10, sat: 0.7, lum: 0.75 }, { solid: true }), shroom: R('stump', { hue: 200, sat: 1.4, lum: 1.2 }, { solid: true }),
+  glowshroom: R('flowers', { hue: 120, sat: 1.5, lum: 0.9 }),
+  gearfloor: R('cobble', { hue: 20, sat: 0.4, lum: 0.8 }), gearwall: R('darkbrick', { hue: 20, sat: 0.5, lum: 0.9 }, { solid: true }), pipe: R('pillar', { hue: 180, sat: 0.6, lum: 0.9 }, { solid: true }),
+  templefloor: R('sandfloor', { hue: -10, sat: 1.1, lum: 1.0 }), templewall: R('goldbrick', { hue: -10, sat: 1.0, lum: 0.9 }, { solid: true }),
+  barrackfloor: R('cobble', { sat: 0.3, lum: 0.7 }), barrackwall: R('brick', { sat: 0.3, lum: 0.7 }, { solid: true }),
+  i_snowtown: { base: 'snow', icon: 'town' }, i_bell: { base: 'snow', icon: 'bell' }, i_pale: { base: 'snow', icon: 'tower', look: { sat: 0.05, lum: 1.6 } },
+  i_ecave: { base: 'cinder', o: [15, 14], ot: true }, i_gear: { base: 'cinder', icon: 'castle', look: { hue: 20, sat: 0.4, lum: 0.75 } },
+  i_mtown: { base: 'swampgrass', icon: 'town' }, i_mcave: { base: 'swampgrass', o: [15, 14], ot: true }, i_temple: { base: 'sand', icon: 'shrine', look: { hue: 180, sat: 1.0 } },
+  i_skytown: { base: 'skygrass', icon: 'skytown' }, i_aerie: { base: 'skygrass', icon: 'tower', look: { hue: 160, sat: 0.6, lum: 1.3 } },
+});
 export const TILES = T;
+// a tile kind animates if it is (or is made from) water
+const isAnim = (k) => !!T[k] && (T[k].water !== undefined || (T[k].of && isAnim(T[k].of)) || (T[k].base && isAnim(T[k].base)));
+const lookCache = new Map();
+const tmp = canvas(16, 16);
 export const solidKind = (k) => !!(T[k] && T[k].solid);
 
 // a 16x16 piece of a sheet
@@ -230,6 +297,21 @@ const grp = (k) => GROUP[k] || k;
 export function drawTile(g, k, x, y, nb, f) {
   const d = T[k];
   if (!d) throw new Error('tile ' + k);
+  if (d.of) {
+    // draw the source tile as if its neighbours of the same kind were that source, then recolour
+    const nb2 = (dx, dy) => { const o = nb(dx, dy); if (o === undefined) return undefined; if (o === k) return d.of; if (o === d.of || grp(o) === grp(d.of)) return '_'; return o; };
+    let key = k + '|' + (isAnim(k) ? f : 0) + '|' + (x & 1) + (y & 1);
+    for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) key += '|' + nb2(dx, dy);
+    let c = lookCache.get(key);
+    if (!c) {
+      tmp.x.clearRect(0, 0, 16, 16);
+      drawTile(tmp.x, d.of, x, y, nb2, f);
+      c = recolor(tmp, d.look);
+      lookCache.set(key, c);
+    }
+    g.drawImage(c, 0, 0);
+    return;
+  }
   if (d.base) drawTile(g, d.base, x, y, nb, f);
   if (d.t) blit(g, NEST, d.t[0], d.t[1]);
   if (d.d) g.drawImage(DEVU, d.d[0] * 16, d.d[1] * 16 + (d.anim ? f * 336 : 0), 16, 16, 0, 0, 16, 16);
@@ -245,6 +327,7 @@ export function drawTile(g, k, x, y, nb, f) {
   if (d.d2) { const top = nb(0, -1) !== k; g.drawImage(DEVU, d.d2[0] * 16, (d.d2[1] + (top ? 0 : 1)) * 16, 16, 16, 0, 0, 16, 16); }
   if (d.icon) {
     if (d.ruin) { g.globalAlpha = 0.85; g.drawImage(ICON[d.icon], 0, 0); g.globalAlpha = 1; g.fillStyle = '#000'; for (let i = 0; i < 9; i++) g.fillRect((i * 7) % 15, 2 + ((i * 5) % 12), 2, 1); }
+    else if (d.look) { const key = 'icon|' + k; if (!lookCache.has(key)) lookCache.set(key, recolor(ICON[d.icon], d.look)); g.drawImage(lookCache.get(key), 0, 0); }
     else g.drawImage(ICON[d.icon], 0, 0);
   }
 }
@@ -254,14 +337,15 @@ export function drawTile(g, k, x, y, nb, f) {
 export function renderMap(map) {
   const { w, h } = map, frames = [];
   const kindAt = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? undefined : map.kinds[map.tile(x, y)]);
-  const anim = map.kinds.some((k) => T[k] && (T[k].water !== undefined || (T[k].base && T[T[k].base] && T[T[k].base].water !== undefined)));
+  const anim = map.kinds.some((k) => isAnim(k));
+
   const nf = anim ? 3 : 1;
   const t = canvas(16, 16);
   for (let f = 0; f < nf; f++) {
     const c = canvas(w * 16, h * 16);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const k = kindAt(x, y);
-      if (f > 0 && !(T[k].water !== undefined)) { c.x.drawImage(frames[0], x * 16, y * 16, 16, 16, x * 16, y * 16, 16, 16); continue; }
+      if (f > 0 && !isAnim(k)) { c.x.drawImage(frames[0], x * 16, y * 16, 16, 16, x * 16, y * 16, 16, 16); continue; }
       t.x.clearRect(0, 0, 16, 16);
       drawTile(t.x, k, x, y, (dx, dy) => kindAt(x + dx, y + dy), f);
       c.x.drawImage(t, x * 16, y * 16);

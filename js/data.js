@@ -1,6 +1,8 @@
 // Heroes, spells, items, equipment, monsters and the troops they come in.
 // Names are [Chinese, English]; nm() picks the current language.
 import { L } from './i18n.js';
+import { HEROES2, CMD2, LEARN2, SONGS, LEAPS, ARTS, VOWS, GADGETS2, SPELLS2, BLACK2, PASSIVES, ITEMS2, EQUIP2, FSK2, MON2, ZONES2, BOSSES2, BG2, SHOPS2, RECIPES, ARENA, CUPS, BEAST_PRIZES } from './data2.js';
+export { SONGS, LEAPS, ARTS, VOWS, PASSIVES, RECIPES, ARENA, CUPS, BEAST_PRIZES };
 export const nm = (o) => (o ? (Array.isArray(o.n) ? L(o.n[0], o.n[1]) : o.n) : '');
 export const ds = (o) => (o && o.d ? L(o.d[0], o.d[1]) : '');
 
@@ -50,6 +52,7 @@ export const HEROES = {
     equip: { weapon: 'wrench', armor: 'leather', acc: null },
   },
 };
+Object.assign(HEROES, HEROES2);
 // after the trial Hale becomes the Dawn Knight
 export const DAWN = { job: ['曙光騎士', 'Dawn Knight'], sprite: 'hale_dawn', cmds: ['fight', 'cover', 'white', 'item'], mpBase: 12, mpGrow: 2.2 };
 
@@ -58,6 +61,7 @@ export const CMD = {
   black: ['黑魔法', 'Black'], white: ['白魔法', 'White'], pray: ['祈禱', 'Pray'], recall: ['回想', 'Recall'], focus: ['蓄力', 'Focus'],
   kick: ['迴旋踢', 'Kick'], gadget: ['機關', 'Gadget'], cover: ['掩護', 'Cover'],
 };
+Object.assign(CMD, CMD2);
 
 // level -> spells
 export const LEARN = {
@@ -67,7 +71,8 @@ export const LEARN = {
   hale: [[1, 'cure'], [1, 'smite'], [18, 'protect'], [21, 'cura'], [25, 'esuna'], [29, 'ward']],
 };
 export const CALLS = { nyra: [[1, 'tortoise'], [10, 'salamander'], [17, 'moth']] }; // tide and elder come from the story
-export const GADGETS = [[1, 'blast'], [1, 'patch'], [1, 'smoke'], [20, 'wrench'], [22, 'overclock'], [25, 'thundercell'], [30, 'megablast']];
+export const GADGETS = [[1, 'blast'], [1, 'patch'], [1, 'smoke'], [20, 'wrench'], [22, 'overclock'], [25, 'thundercell'], [30, 'megablast'], ...GADGETS2];
+for (const [id, list] of Object.entries(LEARN2)) LEARN[id] = [...(LEARN[id] || []), ...list];
 
 // ---------- spells and skills ----------
 // kind: dmg | heal | revive | status | buff | cure | drain | summon. tgt: foe | ally | self | foes | allies.
@@ -117,7 +122,8 @@ export const SPELLS = {
   thundercell: S(['雷管', 'Thunder Cell'], { mp: 14, kind: 'dmg', tgt: 'foes', power: 95, el: 'bolt', cast: 0, fx: 'bolt', gadget: true }),
   megablast: S(['巨爆彈', 'Megablast'], { mp: 30, kind: 'dmg', tgt: 'foes', power: 240, el: 'fire', cast: 0, fx: 'boom', gadget: true }),
 };
-export const BLACK = new Set(['fire', 'ice', 'bolt', 'fira', 'icera', 'bolta', 'firaga', 'icega', 'boltga', 'sleep', 'venom', 'drain', 'quake', 'starfall']);
+Object.assign(SPELLS, SPELLS2);
+export const BLACK = new Set(['fire', 'ice', 'bolt', 'fira', 'icera', 'bolta', 'firaga', 'icega', 'boltga', 'sleep', 'venom', 'drain', 'quake', 'starfall', ...BLACK2]);
 
 // ---------- items and equipment ----------
 const I = (n, o) => ({ n, ...o });
@@ -193,6 +199,8 @@ export const EQUIP = {
   ribbon: E(['緞帶', 'Ribbon'], 'acc', 'any', 0, { mdef: 6 }, { immune: true, d: ['防止所有異常狀態。', 'Wards off every ailment.'] }),
   emberstone: E(['燼石', 'Ember Stone'], 'acc', 'any', 0, { str: 4, mag: 4 }, { resist: 'fire' }),
 };
+Object.assign(ITEMS, ITEMS2);
+Object.assign(EQUIP, EQUIP2);
 for (const [k, v] of Object.entries(EQUIP)) { ITEMS[k] = v; v.equip = true; }
 
 // ---------- monster skills ----------
@@ -252,7 +260,7 @@ export const MON = {
   shelltort: M(['甲殼龜', 'Shelltort'], 'torpion', { lv: 5, hp: 60, atk: 12, def: 12, mag: 2, mdef: 6, spd: 3, exp: 24, gold: 18 }, { weak: ['bolt'], acts: [['atk', 2], ['shell', 1]] }),
   mossmaw: M(['苔顎巨蜥', 'Mossmaw'], 'drecko', { lv: 7, hp: 900, atk: 20, def: 8, mag: 8, mdef: 6, spd: 7, exp: 260, gold: 300 }, { boss: 'mossmaw', look: { hue: 60, sat: 1.1 }, weak: ['fire'], acts: [['atk', 3], ['bite', 2], ['poisonbite', 1]] }),
   // the eastern hills and Thornwood
-  bramble: M(['枯棘樹', 'Bramblewood'], 'e_vexcris', { lv: 6, hp: 70, atk: 15, def: 7, mag: 6, mdef: 5, spd: 4, exp: 30, gold: 20 }, { weak: ['fire'], acts: [['atk', 2], ['thornlash', 1]] }),
+  bramble: M(['枯棘樹', 'Bramblewood'], 'e_vexcrisp', { lv: 6, hp: 70, atk: 15, def: 7, mag: 6, mdef: 5, spd: 4, exp: 30, gold: 20 }, { weak: ['fire'], acts: [['atk', 2], ['thornlash', 1]] }),
   dustmoth: M(['鱗粉蛾', 'Dustmoth'], 'lepidopteram', { lv: 6, hp: 46, atk: 12, def: 4, mag: 8, mdef: 6, spd: 10, exp: 26, gold: 16 }, { weak: ['fire', 'bolt'], acts: [['atk', 2], ['spore', 1]], drop: ['eyedrop', 0.2] }),
   mudtoad: M(['泥蟾', 'Mud Toad'], 'toadit', { lv: 7, hp: 64, atk: 15, def: 6, mag: 5, mdef: 4, spd: 7, exp: 30, gold: 18 }, { weak: ['ice'], acts: [['atk', 3], ['ink', 1]] }),
   woolbeast: M(['羊毛獸', 'Woolbeast'], 'shupa', { lv: 7, hp: 80, atk: 16, def: 6, mag: 3, mdef: 4, spd: 6, exp: 32, gold: 22 }, { weak: ['fire'], acts: [['atk', 3], ['tackle', 2]] }),
@@ -305,6 +313,8 @@ export const MON = {
   aldous: M(['亞爾多斯王', 'King Aldous'], 'person:king', { lv: 26, hp: 12000, atk: 85, def: 22, mag: 42, mdef: 26, spd: 10, exp: 3000, gold: 0 }, { boss: 'aldous', scale: 3, human: true, look: { hue: 160, lum: 0.8 }, acts: [['atk', 2], ['darkfire', 2], ['thornbind', 1], ['hush', 1]] }),
 };
 
+Object.assign(FSK, FSK2);
+Object.assign(MON, MON2);
 // monsters past the first stretch hit harder, in step with their level
 for (const m of Object.values(MON)) if (!m.boss && m.lv >= 8) m.atk = Math.max(m.atk, Math.round(3.2 * m.lv + 8));
 
@@ -325,15 +335,17 @@ export const ZONES = {
   well: [[3, ['voidwyv', 'fogbrain']], [3, ['anemone', 'ashooze']], [2, ['starcrystal', 'anemone']], [2, ['embergolem']], [1, ['dusk']], [2, ['fogbrain', 'fogbrain', 'ashooze']]],
   world2: [[3, ['steelcrab']], [3, ['goldwyv', 'reddrake']], [2, ['bigtoad', 'dragonfly']], [2, ['pinkent']]],
 };
+Object.assign(ZONES, ZONES2);
 export const BOSSES = {
   mossmaw: ['mossmaw'], stonebak: ['stonebak'], garrick: ['garrick', 'ashguard'], tidewyrm: ['tidewyrm'], brin: ['hound', 'brin_boss', 'hound'],
   elder: ['elderthorn'], golem: ['irongolem'], warden: ['warden'], aldous: ['aldous'], morvane: ['morvane'], ember: ['ember'],
 };
 
+Object.assign(BOSSES, BOSSES2);
 // ---------- experience ----------
 export const expFor = (lv) => (lv <= 1 ? 0 : Math.round(9 * Math.pow(lv - 1, 2.35)));
 // background per zone
-export const BG = { plains: 'plains', mossway: 'cave', hills: 'plains', thornwood: 'forest', lake: 'lake', shrine: 'shrine', desert: 'desert', pass: 'cave', coast: 'plains', docks: 'castle', spire: 'tower', well: 'well', world2: 'plains' };
+export const BG = { plains: 'plains', mossway: 'cave', hills: 'plains', thornwood: 'forest', lake: 'lake', shrine: 'shrine', desert: 'desert', pass: 'cave', coast: 'plains', docks: 'castle', spire: 'tower', well: 'well', world2: 'plains', ...BG2 };
 
 // shops
 export const SHOPS = {
@@ -344,3 +356,4 @@ export const SHOPS = {
   kestrel: ['hipotion', 'remedy', 'phoenix', 'ether', 'tent', 'bomb', 'frost', 'mithrilsword', 'windlance', 'sagestaff', 'silverstaff', 'tigerfang', 'steamhammer', 'steelplate', 'silkvest', 'sagerobe', 'runebracelet'],
   late: ['hipotion', 'xpotion', 'remedy', 'phoenix', 'ether', 'tent', 'flamebrand', 'mithrilplate', 'drakehide', 'swiftboots', 'runebracelet', 'powerband'],
 };
+Object.assign(SHOPS, SHOPS2);

@@ -4,7 +4,7 @@
 import { ctx, W, H, canvas, text, textW, windowBox, HAND, bar } from './gfx.js';
 import { input } from './input.js';
 import { sfx, playMusic, stopMusic } from './audio.js';
-import { S, stats, gainExp, addItem, count, spellsOf, callsOf, gadgetsOf, cmdsOf, spriteOf, heroName, isDawn } from './party.js';
+import { S, stats, gainExp, gainAP, addItem, count, spellsOf, callsOf, gadgetsOf, songsOf, leapsOf, artsOf, vowsOf, skillsOf, cmdsOf, spriteOf, heroName, isDawn } from './party.js';
 import { MON, SPELLS, ITEMS, FSK, CMD, BLACK, nm } from './data.js';
 import { sprite, monArt, personArt, preloadMon, flash as flashArt, recolor } from './sprites.js';
 import { tileCanvas, TILES } from './tiles.js';
@@ -21,25 +21,26 @@ export const _B = { get B() { return B; }, auto: false };
 
 // ---------- setup ----------
 export async function startBattle(troop, opts = {}) {
-  const ids = troop.map((id) => MON[id].art).filter((a) => !a.startsWith('person:'));
+  const ids = [...troop, 'sproutling'].map((id) => MON[id].art).filter((a) => !a.startsWith('person:'));
   await preloadMon([...new Set([...ids, ...Object.values(SPELLS).filter((s) => s.art).map((s) => s.art)])]);
   B = {
     opts, t: 0, party: [], foes: [], queue: [], cur: null, menu: null, fx: [], nums: [], banner: null, msg: null,
-    ready: [], result: null, shake: 0, flashScr: 0, hold: 0, waits: [], round: 0, cover: null, done: null, introT: 30,
+    ready: [], result: null, shake: 0, flashScr: 0, hold: 0, waits: [], round: 0, cover: null, done: null, introT: 30, counters: [], later: null,
     bg: makeBg(opts.bg || 'plains'), boss: troop.some((id) => MON[id].boss), log: [],
   };
   S.members.forEach((h, i) => {
     const s = stats(h);
     if (h.hp > s.maxhp) h.hp = s.maxhp;
-    B.party.push({ kind: 'hero', h, i, gauge: rand(0, 600), st: { ...pickPersist(h.st) }, focus: 0, dx: 0, dy: 0, pose: 0, ready: false, air: null, cast: null });
+    const p = { kind: 'hero', h, i, gauge: rand(0, 600), st: { ...pickPersist(h.st) }, focus: 0, dx: 0, dy: 0, pose: 0, ready: false, air: null, cast: null };
+    // passive abilities that act as the battle starts
+    const pass = s.pass;
+    if (h.hp > 0) for (const [k, st] of [['autoregen', 'regen'], ['autohaste', 'haste'], ['autoprotect', 'protect'], ['autoward', 'ward']]) if (pass.has(k)) p.st[st] = 1;
+    if (pass.has('firststrike')) p.gauge = Math.max(p.gauge, rand(500, 900));
+    B.party.push(p);
   });
-  troop.forEach((id, i) => {
-    const d = MON[id];
-    const art = d.art.startsWith('person:') ? personArt(d.art.slice(7), d.scale || 2, d.look) : monArt(d.art, d.look);
-    const sc = d.art.startsWith('person:') ? 1 : d.scale || 1;
-    B.foes.push({ kind: 'foe', id, d, i, hp: d.hp, maxhp: d.hp, gauge: rand(0, 500), st: {}, art, sc, w: art[0].width * sc, h: art[0].height * sc, alive: true, fade: 0, blink: 0, hurt: 0, turns: 0, hitSince: 0, calm: 0, charge: 0, name: nm(d) });
-  });
+  troop.forEach((id) => addFoe(id, false));
   layoutFoes();
+  for (const f of B.foes) { const b = (S.beast[f.id] = S.beast[f.id] || { seen: 0, kills: 0 }); b.seen++; }
   // letters for twins: Ooze A, Ooze B
   const seen = {};
   for (const f of B.foes) { seen[f.id] = (seen[f.id] || 0) + 1; }
@@ -48,6 +49,16 @@ export async function startBattle(troop, opts = {}) {
   return new Promise((res) => { B.done = res; });
 }
 const pickPersist = (st) => { const o = {}; for (const k of ['poison', 'blind', 'mute']) if (st && st[k]) o[k] = 1; return o; };
+// a monster joins the fight (at the start, or called in by a boss)
+function addFoe(id, relayout = true) {
+  const d = MON[id];
+  const art = d.art.startsWith('person:') ? personArt(d.art.slice(7), d.scale || 2, d.look) : monArt(d.art, d.look);
+  const sc = d.art.startsWith('person:') ? 1 : d.scale || 1;
+  const f = { kind: 'foe', id, d, i: B.foes.length, hp: d.hp, maxhp: d.hp, gauge: rand(0, 500), st: {}, art, sc, w: art[0].width * sc, h: art[0].height * sc, alive: true, fade: 0, blink: 0, hurt: 0, turns: 0, hitSince: 0, calm: 0, charge: 0, name: nm(d) };
+  B.foes.push(f);
+  if (relayout) { B.foes = B.foes.filter((x) => x.alive || x.fade < 30); B.foes.forEach((x, i) => { x.i = i; }); layoutFoes(); const b = (S.beast[id] = S.beast[id] || { seen: 0, kills: 0 }); b.seen++; }
+  return f;
+}
 
 function layoutFoes() {
   const fs = B.foes, n = fs.length;
@@ -67,7 +78,7 @@ function layoutFoes() {
 const heroX = (p) => (p.h.row === 'back' ? 218 : 202);
 const heroY = (p) => 34 + p.i * 21;
 const foeCx = (f) => f.x + f.w / 2, foeCy = (f) => f.y + f.h / 2;
-const live = (list) => list.filter((x) => (x.kind === 'hero' ? x.h.hp > 0 && !x.air : x.alive && x.hp > 0));
+const live = (list) => list.filter((x) => (x.kind === 'hero' ? x.h.hp > 0 && !x.air : x.alive && x.hp > 0 && !x.hidden));
 const liveFoes = () => live(B.foes);
 const liveHeroes = () => live(B.party);
 const posOf = (t) => (t.kind === 'hero' ? [heroX(t) + 8 + t.dx, heroY(t) + 8 + t.dy] : [foeCx(t), foeCy(t)]);
@@ -84,30 +95,38 @@ function banner(s) { B.banner = { s, t: 0 }; }
 
 // ---------- stats in battle ----------
 function fs(t) { // fighter stats
-  if (t.kind === 'hero') { const s = stats(t.h); return { ...s, lv: t.h.lv, hp: t.h.hp }; }
-  const d = t.d; return { atk: d.atk, def: d.def, mag: d.mag, mdef: d.mdef, spd: d.spd, lv: d.lv, el: null };
+  let o;
+  if (t.kind === 'hero') { const s = stats(t.h); o = { ...s, lv: t.h.lv, hp: t.h.hp }; }
+  else { const d = t.d; o = { atk: d.atk, def: d.def, mag: d.mag, mdef: d.mdef, spd: d.spd, lv: d.lv, el: null, pass: new Set() }; }
+  if (t.st.brk) { o.def = Math.round(o.def * 0.6); o.mdef = Math.round(o.mdef * 0.8); }
+  if (t.st.berserk) o.atk = Math.round(o.atk * 1.4);
+  return o;
 }
+const capOf = (a) => (a && a.kind === 'hero' && stats(a.h).pass.has('breaker') ? 99999 : 9999);
 function hpOf(t) { return t.kind === 'hero' ? t.h.hp : t.hp; }
 function maxOf(t) { return t.kind === 'hero' ? stats(t.h).maxhp : t.maxhp; }
 function setHp(t, v) { v = Math.max(0, Math.min(maxOf(t), Math.round(v))); if (t.kind === 'hero') t.h.hp = v; else t.hp = v; }
 function elMul(t, el) {
-  if (!el || t.kind === 'hero') { if (el && t.kind === 'hero' && stats(t.h).resist === el) return 0.5; return 1; }
-  const d = t.d;
-  if (d.absorb && d.absorb.includes(el)) return -1;
-  if (d.weak && d.weak.includes(el)) return 2;
+  if (!el || t.kind === 'hero') { if (el && t.kind === 'hero' && stats(t.h).resists.includes(el)) return 0.5; return 1; }
+  const d = t.d, weak = t.weakO || d.weak, absorb = t.absorbO || d.absorb;
+  if (absorb && absorb.includes(el)) return -1;
+  if (weak && weak.includes(el)) return 2;
   if (d.resist && d.resist.includes(el)) return 0.5;
   if (d.undead && el === 'holy') return 2;
   return 1;
 }
 
 // deal damage (negative heals); returns the number dealt
-function hurt(t, dmg, { col, magic, physical, el } = {}) {
+function hurt(t, dmg, { col, magic, physical, el, cap = 9999 } = {}) {
   if (t.kind === 'foe' && !t.alive) return 0;
   dmg = Math.round(dmg);
   if (dmg < 0) { setHp(t, hpOf(t) - dmg); num(t, -dmg, '#80f8a0'); return dmg; }
   if (t.kind === 'foe' && t.d.boss === 'elder' && dmg > 0) t.hitSince++;
   if (t.d && t.d.boss === 'elder') dmg = Math.min(dmg, 99);
-  dmg = Math.min(9999, Math.max(0, dmg));
+  // a boss's veil turns blades or spells away
+  if (t.kind === 'foe' && t.veil && ((t.veil === 'phys' && physical) || (t.veil === 'magic' && magic))) dmg = Math.round(dmg * 0.1);
+  if (t.kind === 'foe' && t.charge && t.d.boss === 'colossus' && el === 'bolt' && dmg > 0) { t.charge = 0; t.st.stop = 300; B.later = L('雷電讓巨神的核心短路了！它停了下來。', "Lightning shorts out the Colossus's core! It grinds to a halt."); }
+  dmg = Math.min(cap, Math.max(0, dmg));
   setHp(t, hpOf(t) - dmg);
   num(t, dmg, col || '#f8f8f8');
   if (physical && t.st.sleep) { delete t.st.sleep; }
@@ -118,19 +137,24 @@ function hurt(t, dmg, { col, magic, physical, el } = {}) {
 }
 function killFoe(f) {
   if (f.d.boss && bossDeath(f)) return;
-  f.alive = false; f.fade = 1; sfx('die');
+  f.alive = false; f.fade = 1; f.diedAt = B.round; sfx('die');
+  const b = (S.beast[f.id] = S.beast[f.id] || { seen: 1, kills: 0 }); b.kills++;
 }
-function killHero(p) { p.st = {}; p.gauge = 0; p.ready = false; p.cast = null; p.air = null; p.focus = 0; B.ready = B.ready.filter((x) => x !== p); if (B.menu && B.menu.p === p) B.menu = null; if (B.cover && (B.cover.by === p || B.cover.on === p)) B.cover = null; }
+function killHero(p) {
+  p.st = {}; p.gauge = 0; p.ready = false; p.cast = null; p.air = null; p.focus = 0; B.ready = B.ready.filter((x) => x !== p); if (B.menu && B.menu.p === p) B.menu = null; if (B.cover && (B.cover.by === p || B.cover.on === p)) B.cover = null;
+  // a Phoenix Charm burns once a battle
+  if (stats(p.h).pass.has('autolife') && !p.lifeUsed) { p.lifeUsed = true; p.h.hp = Math.max(1, Math.round(stats(p.h).maxhp * 0.3)); num(p, L('重生', 'Rebirth'), '#f8c050'); fx('fire', heroX(p) + 8, heroY(p) + 8); }
+}
 
-function physical(a, t, mult = 1, { ignoreRow = false } = {}) {
+function physical(a, t, mult = 1, { ignoreRow = false, el: elOverride, pierce = false } = {}) {
   const sa = fs(a), st = fs(t);
   // blindness and dodging
   let miss = 0.04 + Math.max(0, (st.spd - sa.spd) * 0.006);
   if (a.st.blind) miss += 0.45;
   if (t.st.sleep) miss = 0;
   if (Math.random() < miss) { num(t, L('落空', 'Miss'), '#c0c8f0'); sfx('miss'); return 0; }
-  const crit = Math.random() < 0.05;
-  let d = sa.atk * 2 * rand(0.875, 1.125) - (crit ? 0 : st.def * 1.1);
+  const crit = Math.random() < (sa.pass && sa.pass.has('critup') ? 0.16 : 0.05);
+  let d = sa.atk * 2 * rand(0.875, 1.125) - (crit || pierce ? 0 : st.def * 1.1);
   if (d < 1) d = rand(1, 4);
   if (crit) d *= 1.5;
   d *= mult;
@@ -138,9 +162,13 @@ function physical(a, t, mult = 1, { ignoreRow = false } = {}) {
   if (t.kind === 'hero' && !ignoreRow && t.h.row === 'back') d *= 0.5;
   if (t.st.protect) d *= 0.5;
   if (t.parry) d *= 0.5;
-  if (a.kind === 'hero') { const m = elMul(t, sa.el); if (m < 0) { hurt(t, d * m); return 0; } d *= m; }
+  const el = elOverride !== undefined ? elOverride : sa.el;
+  if (a.kind === 'hero') { const m = elMul(t, el); if (m < 0) { hurt(t, d * m); return 0; } d *= m; }
   sfx(crit ? 'crit' : 'hit');
-  return hurt(t, d, { physical: true, col: crit ? '#f8e070' : undefined });
+  const dealt = hurt(t, d, { physical: true, el, cap: capOf(a), col: crit ? '#f8e070' : undefined });
+  // Master Oro answers blows taken in his stance
+  if (t.kind === 'foe' && t.stance && t.alive && a.kind === 'hero' && a.h.hp > 0) B.counters.push({ by: t, on: a });
+  return dealt;
 }
 function magical(a, t, power, el, { split = false, scale = 14 } = {}) {
   const sa = fs(a), st = fs(t);
@@ -148,23 +176,26 @@ function magical(a, t, power, el, { split = false, scale = 14 } = {}) {
   if (d < 1) d = rand(1, 5);
   if (split) d *= 0.55;
   if (t.st.ward) d *= 0.5;
+  if (a.kind === 'hero' && el && sa.boost === el) d *= 1.4;
   const m = elMul(t, el);
   if (m < 0) return hurt(t, d * m);
   d *= m;
-  return hurt(t, d, { magic: true, el, col: m > 1 ? '#f8c050' : undefined });
+  return hurt(t, d, { magic: true, el, cap: capOf(a), col: m > 1 ? '#f8c050' : undefined });
 }
 const healAmt = (a, power, split) => Math.round(power * (1 + fs(a).mag / 12) * rand(0.95, 1.05) * (split ? 0.6 : 1));
 
 function giveStatus(t, st, hit = 1) {
   if (t.kind === 'hero' && stats(t.h).immune) { num(t, L('無效', 'Null'), '#c0c8f0'); return false; }
-  if (t.kind === 'foe' && t.d.boss && ['sleep', 'mute', 'slow'].includes(st) && Math.random() < 0.85) { num(t, L('無效', 'Null'), '#c0c8f0'); return false; }
+  if (t.kind === 'foe' && t.d.boss && ['sleep', 'mute', 'slow', 'stop', 'berserk'].includes(st) && Math.random() < 0.85) { num(t, L('無效', 'Null'), '#c0c8f0'); return false; }
   if (Math.random() > hit) { num(t, L('落空', 'Miss'), '#c0c8f0'); return false; }
-  t.st[st] = st === 'sleep' ? 420 : 1;
+  t.st[st] = st === 'sleep' ? 420 : st === 'stop' ? 300 : 1;
+  if (st === 'stop' && t.kind === 'hero') { t.ready = false; B.ready = B.ready.filter((x) => x !== t); if (B.menu && B.menu.p === t) B.menu = null; }
   if (st === 'haste') delete t.st.slow; if (st === 'slow') delete t.st.haste;
   num(t, STNAME[st] ? STNAME[st]() : st, '#e0a0f8');
   return true;
 }
-const STNAME = { poison: () => L('中毒', 'Poison'), sleep: () => L('睡眠', 'Sleep'), blind: () => L('黑暗', 'Blind'), mute: () => L('沉默', 'Mute'), slow: () => L('減速', 'Slow'), haste: () => L('加速', 'Haste'), protect: () => L('護壁', 'Protect'), ward: () => L('魔障', 'Ward'), regen: () => L('再生', 'Regen') };
+const STNAME = { poison: () => L('中毒', 'Poison'), sleep: () => L('睡眠', 'Sleep'), blind: () => L('黑暗', 'Blind'), mute: () => L('沉默', 'Mute'), slow: () => L('減速', 'Slow'), haste: () => L('加速', 'Haste'), protect: () => L('護壁', 'Protect'), ward: () => L('魔障', 'Ward'), regen: () => L('再生', 'Regen'),
+  stop: () => L('停滯', 'Still'), berserk: () => L('狂暴', 'Berserk'), brk: () => L('破防', 'Armor Down'), taunt: () => L('挑釁', 'Taunt'), counter: () => L('架勢', 'Stance') };
 
 // ---------- the time gauges ----------
 function rate(t) {
@@ -182,6 +213,7 @@ function tickGauges() {
   for (const p of B.party) {
     if (p.h.hp <= 0) continue;
     if (p.st.sleep) { p.st.sleep -= SPEEDS[settings.speed]; if (p.st.sleep <= 0) delete p.st.sleep; continue; }
+    if (p.st.stop) { p.st.stop -= SPEEDS[settings.speed]; if (p.st.stop <= 0) delete p.st.stop; continue; }
     if (p.air) { p.air.t -= SPEEDS[settings.speed]; if (p.air.t <= 0 && !p.air.queued) { p.air.queued = true; B.queue.push({ actor: p, type: 'land' }); } continue; }
     if (p.cast) { p.cast.t -= SPEEDS[settings.speed]; if (p.cast.t <= 0 && !p.cast.queued) { p.cast.queued = true; B.queue.push(p.cast.act); } continue; }
     if (p.ready || B.queue.some((a) => a.actor === p)) continue;
@@ -191,6 +223,8 @@ function tickGauges() {
   for (const f of B.foes) {
     if (!f.alive) continue;
     if (f.st.sleep) { f.st.sleep -= SPEEDS[settings.speed]; if (f.st.sleep <= 0) delete f.st.sleep; continue; }
+    if (f.st.stop) { f.st.stop -= SPEEDS[settings.speed]; if (f.st.stop <= 0) delete f.st.stop; continue; }
+
     if (B.queue.some((a) => a.actor === f)) continue;
     f.gauge += rate(f);
     if (f.gauge >= 1000) { f.gauge = 0; B.queue.push({ actor: f, type: 'foe' }); }
@@ -209,6 +243,8 @@ function openMenu() {
   if (B.menu || B.result || B.cur && B.cur.blocking) return;
   const p = B.ready[0];
   if (!p) return;
+  // a berserk friend just swings at someone
+  if (p.st.berserk) { const t = pick(liveFoes()); if (t) closeMenuFor(p, { actor: p, type: 'fight', target: t }); return; }
   if (_B.auto) { autoAct(p); return; }
   B.menu = { p, stage: 'cmd', i: 0, cmds: cmdsOf(p.h) };
   sfx('cursor');
@@ -228,13 +264,15 @@ function autoAct(p) {
   const h = p.h, mp = h.mp, heroes = B.party;
   const low = heroes.filter((q) => q.h.hp > 0 && q.h.hp < stats(q.h).maxhp * 0.45);
   const dead = heroes.filter((q) => q.h.hp <= 0);
-  const known = [...spellsOf(h), ...callsOf(h), ...gadgetsOf(h)].filter((id) => SPELLS[id].mp <= mp && !(p.st.mute && !SPELLS[id].gadget));
+  const known = [...spellsOf(h), ...callsOf(h), ...gadgetsOf(h), ...songsOf(h)].filter((id) => mpCost(h, id) <= mp && !(p.st.mute && !SPELLS[id].gadget));
   const act = (o) => closeMenuFor(p, { actor: p, ...o });
   const spell = (id, targets) => act({ type: 'spell', id, targets, side: ['foe', 'foes'].includes(SPELLS[id].tgt) ? 'foe' : 'ally', split: targets.length > 1 && !['foes', 'allies'].includes(SPELLS[id].tgt), cast: SPELLS[id].cast });
   if (dead.length && known.includes('raise')) return spell(known.includes('arise') ? 'arise' : 'raise', [dead[0]]);
   if (dead.length && count('phoenix') && (h.id === 'miel' || h.id === 'tal' || h.id === 'dorrin' || heroes.filter((q) => q.h.hp > 0).length <= 2)) return act({ type: 'item', id: 'phoenix', targets: [dead[0]], side: 'ally' });
+  if (dead.length && known.includes('namesong')) return spell('namesong', B.party.slice());
+  if (dead.length && known.includes('dawnchoir')) return spell('dawnchoir', B.party.slice());
   if (low.length) {
-    const heals = ['curaga', 'cura', 'cure', 'elder', 'patch'].filter((id) => known.includes(id));
+    const heals = ['curaga', 'sanctuary', 'cura', 'cure', 'elder', 'drone', 'patch', 'mend'].filter((id) => known.includes(id));
     if (heals.length) { const id = heals[0]; return spell(id, SPELLS[id].tgt === 'allies' ? liveHeroes() : low.length > 1 && SPELLS[id].multi ? liveHeroes() : [low[0]]); }
     if (h.id !== 'nyra' && count('hipotion') && low[0].h.hp < stats(low[0].h).maxhp * 0.3) return act({ type: 'item', id: 'hipotion', targets: [low[0]], side: 'ally' });
     if (count('potion') && low[0].h.hp < stats(low[0].h).maxhp * 0.3 && h.id !== 'nyra') return act({ type: 'item', id: 'potion', targets: [low[0]], side: 'ally' });
@@ -243,13 +281,24 @@ function autoAct(p) {
   const t = foes.slice().sort((a, b) => a.hp - b.hp)[0];
   const big = foes.reduce((a, f) => a + f.hp, 0) > 300 || B.boss;
   if (h.id === 'hale' && !isDawn(h) && foes.length >= 3 && h.hp > stats(h).maxhp * 0.5) return act({ type: 'ashedge' });
-  if (h.id === 'brin' && Math.random() < 0.35) return act({ type: 'leap', target: t });
+  if (h.id === 'brin' && Math.random() < 0.4) { const ls = leapsOf(h); const id = ls.includes('wyrmdive') && foes.length > 1 ? 'wyrmdive' : ls.includes('highjump') && B.boss ? 'highjump' : 'leap'; return act({ type: 'leap', id, target: t }); }
+  if (h.id === 'tal' && artsOf(h).includes('chakra') && h.hp < stats(h).maxhp * 0.5) return act({ type: 'art', id: 'chakra' });
   if (h.id === 'tal' && p.focus < 1 && B.boss) return act({ type: 'focus' });
-  if (h.id === 'tal' && foes.length >= 3) return act({ type: 'kick' });
+  if (h.id === 'tal' && artsOf(h).includes('tigerrush') && Math.random() < 0.5) return act({ type: 'art', id: 'tigerrush' });
+  if (h.id === 'tal' && foes.length >= 3) return act({ type: 'art', id: 'kick' });
+  if (h.id === 'ilse') {
+    const songs = songsOf(h).filter((id) => SPELLS[id].mp <= mp && !p.st.mute);
+    if (B.boss && songs.includes('quickstep') && !B.party.some((q) => q.st.haste)) return spell('quickstep', liveHeroes());
+    if (B.boss && songs.includes('ironmarch') && !B.party.some((q) => q.st.protect)) return spell('ironmarch', liveHeroes());
+    if (songs.includes('requiem') && (B.boss || foes.length > 1)) return spell('requiem', foes);
+    if (songs.includes('hearth') && !B.party.some((q) => q.st.regen) && B.boss) return spell('hearth', liveHeroes());
+    if (!S.beast[t.id] || !S.beast[t.id].scan) return act({ type: 'scan', target: t });
+  }
+  if (h.id === 'hale' && vowsOf(h).length && B.boss && Math.random() < 0.5) return spell(h.hp > stats(h).maxhp * 0.6 ? 'dawnbreak' : 'holyblade', h.hp > stats(h).maxhp * 0.6 ? foes : [t]);
   if (h.id === 'miel' && !B.boss) return act({ type: 'fight', target: t });
   if (h.id === 'miel' && known.includes('protect') && !B.party.some((q) => q.st.protect) && Math.random() < 0.5) return spell('protect', liveHeroes());
-  const offensive = known.filter((id) => ['dmg', 'summon'].includes(SPELLS[id].kind) && !SPELLS[id].heal && SPELLS[id].power > 0 && (big || foes.length > 1));
-  if (offensive.length && ['nyra', 'gowan', 'dorrin'].includes(h.id)) {
+  const offensive = known.filter((id) => ['dmg', 'summon'].includes(SPELLS[id].kind) && !SPELLS[id].heal && SPELLS[id].power > 0 && (big || foes.length > 1) && !SPELLS[id].song);
+  if (offensive.length && ['nyra', 'gowan', 'dorrin', 'miel'].includes(h.id) && (h.id !== 'miel' || B.boss)) {
     const score = (id) => { const d = SPELLS[id]; const n = d.tgt === 'foes' ? foes.length : 1; const w = d.el && t.d.weak && t.d.weak.includes(d.el) ? 2 : d.el && t.d.absorb && t.d.absorb.includes(d.el) ? -1 : 1; return d.power * n * w / Math.max(4, d.mp); };
     const id = offensive.sort((a, b) => score(b) - score(a))[0];
     if (score(id) > 0 && (mp > stats(h).maxmp * 0.25 || B.boss)) return spell(id, SPELLS[id].tgt === 'foes' ? foes : [t]);
@@ -257,13 +306,20 @@ function autoAct(p) {
   if (h.id === 'gowan' && Math.random() < 0.2) return act({ type: 'recall', cast: 0.6 });
   act({ type: 'fight', target: t });
 }
+// MP a spell costs this hero (Half MP halves it)
+export const mpCost = (h, id) => { const c = SPELLS[id].mp || 0; return h && stats(h).pass.has('mphalf') ? Math.ceil(c / 2) : c; };
 function listFor(p, cmd) {
   const h = p.h, s = stats(h);
-  const sp = (id) => { const d = SPELLS[id]; const mute = p.st.mute && !d.gadget; return { id, label: nm(d), right: d.mp, disabled: d.mp > h.mp || mute || (d.kind === 'heal' && d.tgt === 'allies' && false) }; };
+  const sp = (id) => { const d = SPELLS[id]; const mute = p.st.mute && !d.gadget && !['leap', 'art'].includes(d.kind) && !d.skill && !(d.vow && d.kind === 'phys'); const c = mpCost(h, id); return { id, label: nm(d), right: d.hpcost ? 'HP' : c, disabled: c > h.mp || mute }; };
   if (cmd === 'white') return spellsOf(h).filter((id) => !BLACK.has(id)).map(sp);
   if (cmd === 'black') return spellsOf(h).filter((id) => BLACK.has(id)).map(sp);
   if (cmd === 'call') return callsOf(h).map(sp);
   if (cmd === 'gadget') return gadgetsOf(h).map(sp);
+  if (cmd === 'sing') return songsOf(h).map(sp);
+  if (cmd === 'skill') return skillsOf(h).map(sp);
+  if (cmd === 'vow') return vowsOf(h).map(sp);
+  if (cmd === 'leap') return leapsOf(h).map(sp);
+  if (cmd === 'kick') return artsOf(h).map(sp);
   if (cmd === 'item') return Object.keys(S.inv).filter((k) => ITEMS[k].use && !ITEMS[k].field && !ITEMS[k].key).map((k) => ({ id: k, label: nm(ITEMS[k]), right: S.inv[k], item: true }));
   void s;
   return [];
@@ -271,9 +327,10 @@ function listFor(p, cmd) {
 // the targets a choice can reach
 function targetSpec(kind, def) {
   // returns { side: 'foe'|'ally', multi, all, dead }
-  if (kind === 'fight' || kind === 'leap') return { side: 'foe' };
+  if (kind === 'fight' || kind === 'leap' || kind === 'scan') return { side: 'foe' };
   if (kind === 'cover') return { side: 'ally', notSelf: true };
   if (!def) return { side: 'foe' };
+  if (def.kind === 'leap' || def.kind === 'art') return { side: 'foe', all: def.tgt === 'foes', self: def.tgt === 'self' };
   const side = ['foe', 'foes'].includes(def.tgt) ? 'foe' : 'ally';
   return { side, multi: !!def.multi, all: def.tgt === 'foes' || def.tgt === 'allies', dead: !!def.dead, self: def.tgt === 'self' };
 }
@@ -290,7 +347,7 @@ function updateMenu() {
   const m = B.menu;
   if (!m) return;
   const p = m.p;
-  if (p.h.hp <= 0 || p.st.sleep) { B.menu = null; return; }
+  if (p.h.hp <= 0 || p.st.sleep || p.st.stop) { B.menu = null; return; }
   if (m.stage === 'cmd') {
     const n = m.cmds.length;
     if (input.repeat('down')) { m.i = (m.i + 1) % n; sfx('cursor'); }
@@ -303,9 +360,10 @@ function updateMenu() {
       m.cmd = c;
       if (c === 'fight') { sfx('ok'); startTarget(m, targetSpec('fight')); return; }
       if (c === 'ashedge') { sfx('ok'); closeMenuFor(p, { actor: p, type: 'ashedge' }); return; }
-      if (c === 'leap') { sfx('ok'); startTarget(m, targetSpec('leap')); return; }
+      if (c === 'leap' && leapsOf(p.h).length <= 1) { sfx('ok'); m.sel = null; startTarget(m, targetSpec('leap')); return; }
       if (c === 'focus') { sfx('ok'); closeMenuFor(p, { actor: p, type: 'focus' }); return; }
-      if (c === 'kick') { sfx('ok'); closeMenuFor(p, { actor: p, type: 'kick' }); return; }
+      if (c === 'kick' && artsOf(p.h).length <= 1) { sfx('ok'); closeMenuFor(p, { actor: p, type: 'art', id: 'kick' }); return; }
+      if (c === 'scan') { sfx('ok'); m.sel = null; startTarget(m, targetSpec('scan')); return; }
       if (c === 'pray') { sfx('ok'); closeMenuFor(p, { actor: p, type: 'pray' }); return; }
       if (c === 'recall') { sfx('ok'); closeMenuFor(p, { actor: p, type: 'recall', cast: 0.6 }); return; }
       if (c === 'cover') { sfx('ok'); startTarget(m, targetSpec('cover')); if (!targetList(m).length) { sfx('buzz'); m.stage = 'cmd'; } return; }
@@ -329,7 +387,7 @@ function updateMenu() {
       sfx('ok'); m.sel = it;
       const def = it.item ? ITEMS[it.id] : SPELLS[it.id];
       const spec = targetSpec(it.item ? 'item' : 'spell', def);
-      if (spec.self) { closeMenuFor(p, makeAct(m, [p])); return; }
+      if (spec.self || (it.item && def.use === 'escape')) { closeMenuFor(p, makeAct(m, [p])); return; }
       startTarget(m, spec);
       if (!targetList(m).length) { sfx('buzz'); m.stage = 'list'; }
     }
@@ -364,7 +422,8 @@ function updateMenu() {
       sfx('ok');
       const targets = m.all ? list : [list[Math.min(m.ti, list.length - 1)]];
       if (m.cmd === 'fight') closeMenuFor(p, { actor: p, type: 'fight', target: targets[0] });
-      else if (m.cmd === 'leap') closeMenuFor(p, { actor: p, type: 'leap', target: targets[0] });
+      else if (m.cmd === 'scan') closeMenuFor(p, { actor: p, type: 'scan', target: targets[0] });
+      else if (m.cmd === 'leap') closeMenuFor(p, { actor: p, type: 'leap', id: m.sel ? m.sel.id : 'leap', target: targets[0] });
       else if (m.cmd === 'cover') closeMenuFor(p, { actor: p, type: 'cover', target: targets[0] });
       else closeMenuFor(p, makeAct(m, targets));
     }
@@ -374,6 +433,7 @@ function makeAct(m, targets) {
   const it = m.sel;
   if (it.item) return { actor: m.p, type: 'item', id: it.id, targets, side: m.side };
   const d = SPELLS[it.id];
+  if (d.kind === 'art') return { actor: m.p, type: 'art', id: it.id, cast: d.cast };
   return { actor: m.p, type: 'spell', id: it.id, targets, side: m.side, split: targets.length > 1 && !(d.tgt === 'foes' || d.tgt === 'allies'), cast: d.cast };
 }
 
@@ -389,6 +449,18 @@ async function runAction(a) {
     else await heroAct(a);
   } catch (e) { console.error(e); }
   await waitFx();
+  // counter-attacks earned during the action
+  while (B.counters.length) {
+    const c = B.counters.shift();
+    if (c.by.kind === 'hero' ? c.by.h.hp <= 0 || c.by.st.sleep || c.by.st.stop : !c.by.alive) continue;
+    if (c.on.kind === 'hero' ? c.on.h.hp <= 0 : !c.on.alive) continue;
+    num(c.by, L('反擊', 'Counter'), '#f8d070');
+    await waitF(10);
+    const [x, y] = posOf(c.on); fx('hit', x, y, { dur: 12 });
+    if (c.by.kind === 'hero') physical(c.by, c.on, 1, { ignoreRow: true }); else physical(c.by, c.on, 1.2);
+    await waitFx();
+  }
+  if (B.later) { const s = B.later; B.later = null; await say(s); }
   if (t.kind === 'hero') { t.dx = 0; t.pose = 0; if (a.type !== 'leap') t.gauge = 0; t.cast = null; }
   B.cur = null;
   checkEnd();
@@ -431,25 +503,66 @@ async function heroAct(a) {
       return;
     }
     case 'leap': {
-      banner(nm({ n: CMD.leap }));
+      const d = SPELLS[a.id || 'leap'];
+      banner(nm(d));
       sfx('slide');
       for (let i = 0; i < 12; i++) { p.dy -= 14; await waitF(1); }
-      p.air = { t: 80, target: a.target, queued: false };
+      p.air = { t: d.air || 80, target: a.target, queued: false, id: a.id || 'leap' };
       p.gauge = 0;
       return;
     }
     case 'land': {
-      const t = retarget(p.air && p.air.target);
+      const d = SPELLS[(p.air && p.air.id) || 'leap'];
+      const all = d.tgt === 'foes';
+      const t = all ? pick(liveFoes()) : retarget(p.air && p.air.target);
       p.air = null;
       if (!t) { p.dy = 0; return; }
       const [x, y] = posOf(t);
       const sx = heroX(p);
       p.dx = x - sx - 8; p.dy = -180;
       for (let i = 0; i < 10; i++) { p.dy += 18; await waitF(1); }
-      fx('hit', x, y, { dur: 16 }); B.shake = 8;
-      physical(p, t, 2, { ignoreRow: true });
+      B.shake = 8;
+      for (const f of all ? liveFoes() : [t]) { const [fx0, fy0] = posOf(f); fx('hit', fx0, fy0, { dur: 16 }); physical(p, f, d.mult || 2, { ignoreRow: true }); }
       await waitF(14);
       p.dx = 0; p.dy = 0;
+      return;
+    }
+    case 'scan': {
+      const t = retarget(a.target);
+      if (!t) return;
+      banner(L('解讀', 'Read'));
+      p.pose = 3; sfx('special'); fx('cast', heroX(p) + 8, heroY(p) + 8, { dur: 18 });
+      const [x, y] = posOf(t); fx('song', x, y, { dur: 30 });
+      await waitF(20);
+      const b = (S.beast[t.id] = S.beast[t.id] || { seen: 1, kills: 0 }); b.scan = true;
+      const els = (list) => (list || []).map((e) => ELN[e] ? ELN[e]() : e).join(L('、', ', '));
+      const weak = t.weakO || t.d.weak, absorb = t.absorbO || t.d.absorb;
+      const parts = [L(`${t.name}　Lv${t.d.lv}　HP ${t.hp}/${t.maxhp}`, `${t.name}  Lv${t.d.lv}  HP ${t.hp}/${t.maxhp}`)];
+      parts.push(L(`弱點：${els(weak) || '無'}`, `Weak: ${els(weak) || 'none'}`) + (absorb ? L(`　吸收：${els(absorb)}`, `  Absorbs: ${els(absorb)}`) : ''));
+      await say(parts.join('\n'), true);
+      return;
+    }
+    case 'art': {
+      const d = SPELLS[a.id];
+      banner(nm(d));
+      if (a.id === 'kick') {
+        await stepOut(p);
+        for (const t of liveFoes()) { const [x, y] = posOf(t); fx('hit', x, y, { dur: 12 }); }
+        await waitF(6);
+        for (const t of liveFoes()) physical(p, t, 0.65, { ignoreRow: true });
+        await waitF(16); await stepBack(p);
+      } else if (a.id === 'chakra') {
+        p.pose = 3; sfx('heal'); fx('heal', heroX(p) + 8, heroY(p) + 8); await waitF(16);
+        hurt(p, -Math.round(stats(h).maxhp * 0.33)); delete p.st.poison; delete p.st.blind;
+      } else if (a.id === 'tigerrush') {
+        await stepOut(p);
+        for (let i = 0; i < 4; i++) { const t = pick(liveFoes()); if (!t) break; const [x, y] = posOf(t); fx('hit', x, y, { dur: 10 }); p.swing = 10; physical(p, t, 0.7 * (p.focus ? 1 + p.focus : 1), { ignoreRow: true }); await waitF(9); }
+        p.focus = 0;
+        await waitF(10); await stepBack(p);
+      } else if (a.id === 'counterstance') {
+        sfx('buff'); fx('buff', heroX(p) + 8, heroY(p) + 8, { dur: 24, col: '#f8d070' }); await waitF(14);
+        p.st.counter = 1; num(p, STNAME.counter(), '#f8d070');
+      }
       return;
     }
     case 'focus': {
@@ -504,9 +617,17 @@ async function heroAct(a) {
       addItem(a.id, -1);
       banner(nm(it));
       p.pose = 3; await waitF(10);
-      for (const t0 of a.targets) {
+      if (it.use === 'escape') {
+        if (B.boss || B.opts.noRun) { await say(L('無法逃跑！', "Can't escape!")); return; }
+        fx('dark', heroX(p) + 8, heroY(p) + 8); await waitF(16); B.result = 'run'; B.queue = []; return;
+      }
+      let targets = a.targets;
+      if (it.tgt === 'allies') targets = it.dead ? B.party.filter((q) => q.h.hp <= 0) : liveHeroes();
+      for (const t0 of targets) {
         const t = t0;
-        if (it.use === 'dmg') { for (const f of liveFoes()) { const [x, y] = posOf(f); fx(it.el === 'ice' ? 'ice' : 'fire', x, y); } await waitF(20); for (const f of liveFoes()) { let d = it.power * rand(0.9, 1.1) * elMulSafe(f, it.el); if (d < 0) hurt(f, d); else hurt(f, d); } break; }
+        if (it.use === 'dmg' && it.tgt === 'foe') { const f = retarget(t); if (!f) break; const [x, y] = posOf(f); fx(it.el === 'holy' ? 'holy' : 'fire', x, y); await waitF(20); hurt(f, it.power * rand(0.9, 1.1) * elMulSafe(f, it.el)); break; }
+        if (it.use === 'dmg') { for (const f of liveFoes()) { const [x, y] = posOf(f); fx(it.el === 'ice' ? 'ice' : it.el === 'bolt' ? 'bolt' : it.el === 'wind' ? 'wind' : it.el ? 'fire' : 'star', x, y); } await waitF(20); for (const f of liveFoes()) { let d = it.power * rand(0.9, 1.1) * elMulSafe(f, it.el); if (d < 0) hurt(f, d); else hurt(f, d); } break; }
+        if (it.use === 'buff') { if (t.kind === 'hero' && t.h.hp > 0) { const [x, y] = posOf(t); fx('buff', x, y); giveStatus(t, it.st, 1); } continue; }
         const [x, y] = posOf(t);
         if (it.use === 'revive') { if (t.kind === 'hero' && t.h.hp <= 0) { fx('heal', x, y); await waitF(10); setHp(t, maxOf(t) * it.power); num(t, L('復活', 'Revived'), '#80f8a0'); t.gauge = 0; } else num(t, L('無效', 'No effect'), '#c0c8f0'); continue; }
         if (t.kind === 'hero' && t.h.hp <= 0) continue;
@@ -526,21 +647,26 @@ const elMulSafe = (t, el) => elMul(t, el);
 
 async function castSpell(p, id, targets, { free = false, split = false, side } = {}) {
   const d = SPELLS[id], h = p.h;
+  const physSkill = d.kind === 'phys' && (d.skill || d.vow || d.gadget);
   if (!free) {
-    if (h.mp < d.mp) { await say(L('魔力不足。', 'Not enough MP.')); return; }
-    if (p.st.mute && !d.gadget) { await say(L('沉默中，無法施法。', 'Silenced. No spell comes out.')); return; }
-    h.mp -= d.mp;
+    const cost = mpCost(h, id);
+    if (h.mp < cost) { await say(L('魔力不足。', 'Not enough MP.')); return; }
+    if (p.st.mute && !d.gadget && !physSkill) { await say(L('沉默中，無法施法。', 'Silenced. No spell comes out.')); return; }
+    h.mp -= cost;
+    if (d.hpcost) { const c = Math.max(1, Math.floor(stats(h).maxhp * d.hpcost)); h.hp = Math.max(1, h.hp - c); num(p, c, '#c080f8'); sfx('drain'); }
   }
   banner(nm(d));
   p.pose = 3;
-  if (!d.gadget) { sfx('special'); fx('cast', heroX(p) + 8, heroY(p) + 8, { dur: 18 }); await waitF(16); }
+  if (physSkill) { await stepOut(p); p.swing = 10; }
+  else if (!d.gadget) { sfx('special'); fx(d.song ? 'song' : 'cast', heroX(p) + 8, heroY(p) + 8, { dur: 18 }); await waitF(16); }
   else { await stepOut(p); }
   // the targets may have changed while the spell was charging
   if (d.tgt === 'foes') targets = liveFoes();
-  else if (d.tgt === 'allies') targets = liveHeroes();
+  else if (d.tgt === 'allies') targets = d.dead ? B.party.slice() : liveHeroes();
+  else if (d.tgt === 'self') targets = [p];
   else targets = targets.map((t) => (d.dead ? t : retarget(t, side === 'ally' ? 'hero' : 'foe'))).filter(Boolean);
   if (d.tgt === 'foe' && side === 'foe') targets = [...new Set(targets)];
-  if (!targets.length) { if (d.gadget) await stepBack(p); return; }
+  if (!targets.length) { if (d.gadget || physSkill) await stepBack(p); return; }
   // summons stand in the field for a moment
   if (d.kind === 'summon') {
     sfx('warp'); B.flashScr = 10;
@@ -555,21 +681,51 @@ async function castSpell(p, id, targets, { free = false, split = false, side } =
   for (const t of targets) {
     switch (d.kind) {
       case 'dmg': magical(p, t, d.power, d.el, { split: sp, scale: d.gadget ? 20 : 14 }); if (d.st && t.alive !== false && hpOf(t) > 0) giveStatus(t, d.st, d.hit); break;
-      case 'summon': if (d.heal) { hurt(t, -healAmt(p, d.power, false)); t.st.regen = 1; } else magical(p, t, d.power, d.el, { scale: 12 }); break;
-      case 'heal': if (t.kind === 'foe' && t.d.undead) magical(p, t, d.power, 'holy'); else if (hpOf(t) > 0) hurt(t, -healAmt(p, d.power, sp)); break;
-      case 'revive': if (t.kind === 'hero' && t.h.hp <= 0) { setHp(t, maxOf(t) * d.power); num(t, L('復活', 'Revived'), '#80f8a0'); t.gauge = 0; } else num(t, L('無效', 'No effect'), '#c0c8f0'); break;
+      case 'summon':
+        if (d.heal) { hurt(t, -healAmt(p, d.power, false)); t.st.regen = 1; break; }
+        magical(p, t, d.power, d.el, { scale: 12 });
+        if (d.st && t.alive && t.hp > 0) giveStatus(t, d.st, d.hit);
+        if (d.st2 && t.alive && t.hp > 0) giveStatus(t, d.st2, d.hit);
+        break;
+      case 'heal': if (t.kind === 'foe' && t.d.undead) magical(p, t, d.power, 'holy'); else if (hpOf(t) > 0) { hurt(t, -healAmt(p, d.power, sp)); if (d.regen) t.st.regen = 1; } break;
+      case 'revive':
+        if (t.kind === 'hero' && t.h.hp <= 0) { setHp(t, maxOf(t) * d.power); num(t, L('復活', 'Revived'), '#80f8a0'); t.gauge = 0; }
+        else if (!d.all) num(t, L('無效', 'No effect'), '#c0c8f0');
+        if (d.cure && t.kind === 'hero') for (const k of ['poison', 'sleep', 'mute', 'blind', 'slow', 'stop', 'brk']) delete t.st[k];
+        break;
       case 'cure': for (const k of d.st) delete t.st[k]; num(t, L('治好了', 'Cured'), '#80f8a0'); break;
       case 'buff': giveStatus(t, d.st, 1); break;
+      case 'buff2': for (const st of d.st) giveStatus(t, st, 1); break;
+      case 'mpgive': if (t.kind === 'hero' && t.h.hp > 0) { t.h.mp = Math.min(stats(t.h).maxmp, t.h.mp + d.power); num(t, d.power, '#80c0f8'); } break;
       case 'status': giveStatus(t, d.st, d.hit); break;
       case 'drain': { const dealt = magical(p, t, d.power, null); if (dealt > 0) hurt(p, -Math.round(dealt * 0.5)); break; }
-      case 'phys': physical(p, t, d.power, { ignoreRow: true }); break;
+      case 'phys': {
+        const n = d.hits || 1;
+        for (let k = 0; k < n; k++) {
+          const tt = n > 1 ? pick(liveFoes()) : t;
+          if (!tt) break;
+          if (n > 1) { const [x, y] = posOf(tt); fx(d.fx || 'hit', x, y, { dur: 12 }); await waitF(6); }
+          const dealt = physical(p, tt, d.power, { ignoreRow: true, el: d.el || undefined });
+          if (d.drain && dealt > 0) hurt(p, -Math.round(dealt * d.drain));
+          if (d.st && dealt > 0 && tt.alive && tt.hp > 0) giveStatus(tt, d.st, d.hit || 1);
+        }
+        if (n > 1) return void (await finishCast(p, d, physSkill));
+        break;
+      }
       default: break;
     }
   }
+  // the Ashphoenix brings the fallen back
+  if (d.revive) for (const q of B.party) if (q.h.hp <= 0) { setHp(q, maxOf(q) * d.revive); num(q, L('復活', 'Revived'), '#80f8a0'); q.gauge = 0; }
+  await finishCast(p, d, physSkill);
+}
+async function finishCast(p, d, physSkill) {
   await waitF(14);
   B.summon = null;
-  if (d.gadget) await stepBack(p);
+  if (d.gadget || physSkill) await stepBack(p);
 }
+const ELN = { fire: () => L('火', 'fire'), ice: () => L('冰', 'ice'), bolt: () => L('雷', 'lightning'), water: () => L('水', 'water'), earth: () => L('土', 'earth'), holy: () => L('聖', 'holy'), wind: () => L('風', 'wind'), dark: () => L('暗', 'dark') };
+
 
 // ---------- monsters ----------
 function chooseFoeAct(f) {
@@ -597,7 +753,13 @@ async function foeTurn(f) {
   if (k) banner(nm(k));
   const heroes = liveHeroes();
   if (!heroes.length) return;
-  const pickHero = () => { const l = liveHeroes(); const front = l.filter((p) => p.h.row !== 'back'); return pick(front.length && Math.random() < 0.7 ? front : l); };
+  const pickHero = () => {
+    const l = liveHeroes();
+    if (f.focusOn && l.includes(f.focusOn)) { const t = f.focusOn; f.focusOn = null; return t; }
+    const taunt = l.filter((p) => p.st.taunt);
+    if (taunt.length && Math.random() < 0.8) return pick(taunt);
+    const front = l.filter((p) => p.h.row !== 'back'); return pick(front.length && Math.random() < 0.7 ? front : l);
+  };
   if (!k) { await foeHit(f, pickHero(), 1); return; }
   if (k.kind === 'nothing') { await say(L(`${f.name}靜靜地注視著你們。`, `${f.name} watches you quietly.`)); return; }
   if (k.kind === 'phys') {
@@ -614,7 +776,7 @@ async function foeTurn(f) {
     if (k.fx === 'quake' || k.fx === 'star') B.shake = 14;
     await waitF(24);
     for (const t of ts) {
-      if (k.kind === 'magic') magical(f, t, k.power, k.el, { scale: 40, split: false });
+      if (k.kind === 'magic') { const dealt = magical(f, t, k.power, k.el, { scale: 40, split: false }); if (k.st && dealt > 0 && t.h.hp > 0) giveStatus(t, k.st, k.hit || 1); }
       else if (k.kind === 'drain') { const dealt = magical(f, t, k.power, null, { scale: 40 }); if (dealt > 0) hurt(f, -dealt); }
       else giveStatus(t, k.st, k.hit);
     }
@@ -640,6 +802,11 @@ async function foeHit(f, t, mult, { noFx = false, st, hit, multi } = {}) {
   if (!noFx) { fx('claw', x, y, { dur: 14 }); await waitF(8); }
   const dealt = physical(f, t, mult * (t === (B.cover && B.cover.by) && B.cover.on !== t ? 0.75 : 1));
   if (st && dealt > 0 && t.h.hp > 0) giveStatus(t, st, hit || 1);
+  // a friend in a stance, or with Counter, hits back
+  if (dealt > 0 && t.h.hp > 0 && !t.st.sleep && !t.st.stop && f.alive) {
+    if (t.st.counter) { delete t.st.counter; B.counters.push({ by: t, on: f }); }
+    else if (stats(t.h).pass.has('counter') && Math.random() < 0.4) B.counters.push({ by: t, on: f });
+  }
   await waitF(10);
   if (B.cover && t === B.cover.by) { t.dx = 0; t.dy = 0; }
 }
@@ -664,6 +831,110 @@ const BOSS_AI = {
     if (f.turns % every === 0) { f.charge = 1; return { say: L('燼月之心的光芒越來越亮……它在凝聚力量！', 'The Ember Heart burns brighter and brighter... It is gathering its power!') }; }
     return null;
   },
+  // ---- Part II ----
+  prioress(f) {
+    if (f.turns === 1) return { say: L('蒼白院長：「……不要恨他們……不要……恨……」', 'The Pale Prioress: "...Don\'t hate them... don\'t... hate..."'), then: 'mournsong' };
+    if (f.hp < f.maxhp * 0.6 && f.turns % 2 === 0) {
+      f.veil = f.veil === 'phys' ? 'magic' : 'phys';
+      return { say: f.veil === 'phys' ? L('蒼白的面紗擋住了刀劍！（用魔法攻擊吧）', 'A pale veil turns blades aside! (Try magic.)') : L('面紗吸走了魔法的光芒！（用武器攻擊吧）', 'The veil drinks the light of spells! (Try weapons.)'), then: 'veil' };
+    }
+    if (f.turns % 3 === 0) return 'grief';
+    return null;
+  },
+  garrick2(f) {
+    if (f.turns % 4 === 0 && (f.raised || 0) < 2) {
+      const down = B.foes.filter((x) => !x.alive && x.id === 'ashwraith');
+      if (down.length) { f.raised = (f.raised || 0) + 1; for (const x of down) { x.alive = true; x.fade = 0; x.hp = Math.round(x.maxhp / 2); } return { say: L('空洞的加瑞克：「站起來……這是……命令……」怨靈重新站了起來。', 'Hollow Garrick: "Stand up... that is... an order..." The wraiths rise again.') }; }
+    }
+    if (f.hp < f.maxhp * 0.4 && !f.ordered) { f.ordered = true; return { say: L('空洞的加瑞克：「全軍……衝鋒……」', 'Hollow Garrick: "All of you... charge..."'), then: 'lastorder' }; }
+    return null;
+  },
+  mycel(f) {
+    if (f.turns % 3 === 0 && liveFoes().length < 4) { addFoe('sproutling'); return { say: L('菌母的身上長出了新的芽芽！', 'A new Sproutling buds from Mother Mycel!') }; }
+    return null;
+  },
+  dunewyrm(f) {
+    if (f.hidden) { f.hidden = false; return { say: L('沙丘巨蟲從地底竄出！', 'The Dune Wyrm bursts out of the sand!'), then: 'quake3' }; }
+    if (f.turns % 3 === 0) { f.hidden = true; return { say: L('沙丘巨蟲鑽進沙子裡了……', 'The Dune Wyrm burrows into the sand...') }; }
+    return null;
+  },
+  oro(f) {
+    f.stance = f.turns % 2 === 1;
+    if (f.turns === 1) return { say: L('奧羅師父擺出了架勢。（架勢中被打會反擊）', 'Master Oro takes a stance. (He strikes back when hit in it.)') };
+    if (f.stance) return { say: L('奧羅師父再次擺出架勢。', 'Master Oro settles into his stance again.') };
+    if (f.hp < f.maxhp * 0.35 && f.turns % 4 === 0) return 'sweep';
+    return null;
+  },
+  colossus(f) {
+    if (f.charge) { f.charge = 0; return 'corebeam'; }
+    if (f.turns % 4 === 0) { f.charge = 1; return { say: L('巨神胸口的核心發出紅光……它在充能！（雷電也許能讓它短路）', "The core in the Colossus's chest glows red... It's charging! (Lightning might short it out.)") }; }
+    return null;
+  },
+  sable(f) {
+    const brin = B.party.find((q) => q.h.id === 'brin' && q.h.hp > 0 && !q.air);
+    if (brin && f.turns % 3 === 0) { f.focusOn = brin; return { say: L('賽柏：「布琳！看著我！」', 'Sable: "Brin! Look at me!"'), then: 'thrust' }; }
+    if (f.hp < f.maxhp * 0.3 && !f.raged) { f.raged = true; return { say: L('賽柏額頭上的荊棘印記燃燒起來！', 'The thorn mark on Sable\'s brow flares!'), then: 'rage' }; }
+    return null;
+  },
+  legion(f) {
+    // a fallen body rises again unless all three fall close together
+    const down = B.foes.filter((x) => !x.alive && x.id === 'legion' && B.round - (x.diedAt || 0) >= 9);
+    if (down.length && liveFoes().length) { const x = down[0]; x.alive = true; x.fade = 0; x.hp = Math.round(x.maxhp * 0.4); x.diedAt = 0; return { say: L('倒下的士兵又站了起來……（要一口氣打倒他們）', 'A fallen soldier stands up again... (Strike them all down together.)') }; }
+    return null;
+  },
+  stormroc(f) {
+    if (f.hidden) { f.hidden = false; return 'galedive'; }
+    if (f.turns % 3 === 0) { f.hidden = true; return { say: L('風暴巨鵬衝上了雲端！', 'The Stormroc soars up into the clouds!') }; }
+    return null;
+  },
+  deepcoil(f) {
+    if (f.hidden) { f.hidden = false; return 'whirl'; }
+    if (f.turns % 4 === 0) { f.hidden = true; return { say: L('淵蛇潛入了水底……', 'Deepcoil sinks beneath the water...') }; }
+    return null;
+  },
+  goldmaw(f) {
+    if (f.turns % 3 === 1) return 'shell';
+    if (f.turns % 3 === 2) { const g = Math.min(S.gold, 800); S.gold -= g; f.stolen = (f.stolen || 0) + g; return { say: L(`黃金巨鉗夾走了 ${g} 金幣！`, `Goldmaw snatches ${g} gold!`), then: 'goldsnatch' }; }
+    return null;
+  },
+  bellwraith(f) {
+    if (f.turns % 3 === 0) { for (const q of B.party) if (q.h.hp > 0 && !q.cast && !q.air) { q.gauge = 0; q.ready = false; } B.ready = []; B.menu = null; return { say: L('鐘魂敲響了喪鐘——所有人的時間都倒退了！', 'The Bellwraith tolls its bell. Everyone\'s time slips back!'), then: 'toll' }; }
+    return null;
+  },
+  nameless(f) {
+    if (f.turns === 1) return { say: L('無名者：「我會替你們拿走痛苦。只要忘記就好。」', 'The Nameless: "I will take your pain away. All you have to do is forget."'), then: 'erase' };
+    if (f.hp < f.maxhp * 0.5 && !f.half) { f.half = true; f.st.haste = 1; return { say: L('無名者：「為什麼……你們要緊抓著那些會痛的東西？」', 'The Nameless: "Why... why do you cling to the things that hurt?"'), then: 'pale' }; }
+    if (f.turns % 4 === 0) return 'erase';
+    return null;
+  },
+  hush(f) {
+    if (f.charge) { f.charge = 0; return 'oblivion'; }
+    if (f.hp < f.maxhp * 0.5 && f.turns % 4 === 0) { f.charge = 1; return { say: L('寂靜之心吸走了周圍所有的聲音……它要讓一切歸於無聲！', 'The Hush swallows every sound around it... It means to silence everything!') }; }
+    if (f.turns % 3 === 0) { f.veil = f.veil === 'magic' ? null : 'magic'; return { say: f.veil ? L('寂靜之心被冰冷的靜默包圍——魔法傳不進去！', 'A cold stillness wraps the Hush. Spells cannot reach it!') : L('靜默散去了。', 'The stillness fades.') }; }
+    return null;
+  },
+  champion(f) {
+    if (f.charge) { f.charge = 0; f.focusOn = pick(liveHeroes()); return 'bodyslam'; }
+    if (f.turns % 4 === 0) { f.charge = 1; return { say: L('拉什深吸一口氣，肌肉繃緊了。', 'Raszh draws a deep breath; every muscle tightens.') }; }
+    f.gauge = 500; // he moves twice as often
+    return null;
+  },
+  echo(f) {
+    if (f.turns === 1) return { say: L('莫凡的殘響：「……老師，我只是……不想被忘記。」', 'Morvane\'s Echo: "...Teacher, I only... did not want to be forgotten."') };
+    if (f.turns % 3 === 0) return 'nightfall';
+    return null;
+  },
+  unwritten(f) {
+    if (f.charge) { f.charge = 0; return 'unwrite'; }
+    if (f.turns % 6 === 0) { f.charge = 1; return { say: L('未書者開始抹去這個世界的輪廓……！', 'The Unwritten begins to rub out the edges of the world...!') }; }
+    if (f.turns % 3 === 1) {
+      const all = ['fire', 'ice', 'bolt', 'wind', 'holy', 'dark', 'water', 'earth'];
+      const w = all[Math.floor(Math.random() * all.length)];
+      f.weakO = [w]; f.absorbO = all.filter((e) => e !== w && Math.random() < 0.35);
+      return { say: L(`未書者的顏色變了——現在它害怕「${ELN[w]()}」。`, `The Unwritten changes colour. Now it fears ${ELN[w]()}.`) };
+    }
+    return null;
+  },
   elder(f) {
     // the trial: it answers every blow; it only yields to those who stop striking
     if (f.hitSince > 0) { f.hitSince = 0; f.calm = 0; return { say: L('古棘：「你的劍，還在渴望鮮血。」', 'Elder Thorn: "Your blade still thirsts for blood."'), then: 'thornlash' }; }
@@ -676,6 +947,7 @@ const BOSS_AI = {
 function bossDeath(f) {
   const b = f.d.boss;
   if (b === 'stonebak' || b === 'brin' || b === 'elder') { f.hp = 1; B.result = 'win'; return true; }
+  if (b === 'goldmaw' && f.stolen) { S.gold += f.stolen; B.later = L(`被搶走的 ${f.stolen} 金幣回來了。`, `The ${f.stolen} stolen gold comes back.`); f.stolen = 0; }
   return false;
 }
 function bossCheck() {
@@ -692,7 +964,7 @@ function checkEnd() {
   if (B.result) return;
   bossCheck();
   if (B.result) return;
-  if (!liveFoes().length && !B.foes.some((f) => f.fade > 0 && f.fade < 30)) B.result = 'win';
+  if (!B.foes.some((f) => f.alive && f.hp > 0) && !B.foes.some((f) => f.fade > 0 && f.fade < 30)) B.result = 'win';
   else if (!B.party.some((p) => p.h.hp > 0)) B.result = 'lose';
 }
 let ending = false;
@@ -706,16 +978,20 @@ async function finish() {
     playMusic('victory', { restart: true });
     B.victory = true;
     const dead = B.foes.filter((f) => !f.alive || f.d.boss);
-    let exp = 0, gold = 0; const drops = [];
-    for (const f of dead) { exp += f.d.exp; gold += f.d.gold; if (f.d.drop && Math.random() < f.d.drop[1]) drops.push(f.d.drop[0]); }
+    let exp = 0, gold = 0, ap = 0; const drops = [];
+    const uniq = new Set();
+    for (const f of dead) { if (uniq.has(f)) continue; uniq.add(f); exp += f.d.exp; gold += f.d.gold; ap += Math.max(1, Math.round(f.d.lv / 8)) * (f.d.boss ? 4 : 1); if (f.d.drop && Math.random() < f.d.drop[1]) drops.push(f.d.drop[0]); }
+    if (B.party.some((p) => p.h.hp > 0 && stats(p.h).pass.has('goldup'))) gold = Math.round(gold * 1.5);
     S.gold += gold;
     await waitF(30);
     if (exp) await say(L(`獲得 ${exp} 點經驗值。`, `Gained ${exp} EXP.`), true);
     if (gold) await say(L(`得到 ${gold} 金幣。`, `Found ${gold} gold.`), true);
     for (const it of drops) { addItem(it); await say(L(`得到了「${nm(ITEMS[it])}」！`, `Found ${nm(ITEMS[it])}!`), true); }
-    for (const p of B.party) { for (const line of gainExp(p.h, exp)) { sfx('level'); await say(line, true); } }
+    for (const p of B.party) { const e = stats(p.h).pass.has('expup') ? Math.round(exp * 1.5) : exp; for (const line of gainExp(p.h, e)) { sfx('level'); await say(line, true); } }
+    for (const p of B.party) for (const line of gainAP(p.h, ap)) { sfx('level'); await say(line, true); }
   } else if (r === 'win') { await waitF(30); }
   if (r === 'run') { sfx('run'); for (let i = 0; i < 20; i++) { for (const p of B.party) p.dx += 3; await waitF(1); } }
+  if (r === 'win' && B.later) { const s = B.later; B.later = null; await say(s, true); }
   stopMusic(0.3);
   const done = B.done;
   B.over = true;
@@ -761,7 +1037,7 @@ export function updateBattle() {
   if (!B.cur && B.queue.length) { const a = B.queue.shift(); runAction(a); }
   if (!B.menu && B.ready.length && !B.result) {
     // drop anyone who can no longer act
-    B.ready = B.ready.filter((p) => p.h.hp > 0 && !p.st.sleep);
+    B.ready = B.ready.filter((p) => p.h.hp > 0 && !p.st.sleep && !p.st.stop);
     openMenu();
   }
   checkEnd();
@@ -786,6 +1062,15 @@ const BGDEF = {
   tower: { sky: ['#100010', '#300830'], far: '#204000', ground: 'cobble', band: 'greenbrick' },
   well: { sky: ['#000000', '#200010'], far: '#400010', ground: 'darkrock', band: 'cave', stars: true },
   burnt: { sky: ['#200000', '#782000'], far: '#300800', ground: 'ash', band: 'burnt' },
+  cloister: { sky: ['#001830', '#00487c'], far: '#003050', ground: 'bluetile', band: 'bluewall2' },
+  root: { sky: ['#000800', '#103010'], far: '#183000', ground: 'earth', band: 'woods' },
+  temple: { sky: ['#301000', '#a04800'], far: '#602800', ground: 'sandfloor', band: 'goldbrick' },
+  volcano: { sky: ['#200000', '#a01800'], far: '#400800', ground: 'ash', band: 'cave' },
+  gear: { sky: ['#101010', '#383028'], far: '#282018', ground: 'cobble', band: 'darkbrick' },
+  sky: { sky: ['#3c7cfc', '#d8f0fc'], far: '#fcfcfc', ground: 'cloud', band: null },
+  swamp: { sky: ['#183018', '#507850'], far: '#204020', ground: 'swamp', band: 'tree' },
+  snow: { sky: ['#8090b0', '#e0e8f0'], far: '#c0c8d8', ground: 'snow', band: 'snowtree' },
+  pale: { sky: ['#a0a0b0', '#f0f0f8'], far: '#d0d0e0', ground: 'paletile', band: 'palewall' },
 };
 function makeBg(kind) {
   const d = BGDEF[kind] || BGDEF.plains, c = canvas(W, FIELD_H), g = c.x;
@@ -836,6 +1121,7 @@ export function drawBattle() {
 }
 function drawFoe(f) {
   if (!f.alive && f.fade >= 30) return;
+  if (f.hidden && f.alive) { if ((B.t >> 3) % 4 === 0) { ctx.globalAlpha = 0.25; ctx.drawImage(f.art[0], Math.round(f.x), Math.round(f.y), f.w, f.h); ctx.globalAlpha = 1; } return; }
   const fr = f.art.length === 4 ? (f.blink ? f.art[1] : f.hurt ? f.art[2] : f.art[Math.floor((B.t + f.i * 17) / 40) % 2 ? 3 : 0]) : f.art[f.art.length > 1 && f.blink ? 1 : 0];
   let img = fr;
   if (f.blink && (f.blink >> 2) % 2) img = flashArt(fr);
@@ -852,6 +1138,8 @@ function drawFoe(f) {
   }
   ctx.drawImage(img, x, y, f.w, f.h);
   if (f.st.sleep && (B.t >> 4) % 2) text('z', x + f.w - 4, y - 4, '#f8f8f8');
+  if (f.st.stop && (B.t >> 4) % 2) { ctx.strokeStyle = '#a0a0f8'; ctx.strokeRect(x + 1, y + 1, f.w - 2, f.h - 2); }
+  if (f.veil && (B.t >> 2) % 6 === 0) { ctx.fillStyle = 'rgba(240,240,255,0.35)'; ctx.fillRect(x, y, f.w, f.h); }
 }
 function drawHero(p) {
   const h = p.h;
@@ -879,6 +1167,9 @@ function drawHero(p) {
   if (p.swing) { const k = 10 - p.swing; ctx.save(); ctx.translate(x + 2, y + 9); ctx.rotate(-1.4 + k * 0.28); ctx.drawImage(WEAPON, 0, 0, 8, 8, -8, -8, 8, 8); ctx.restore(); }
   if (p.cast && (B.t >> 2) % 2) { ctx.fillStyle = '#f8f8f8'; ctx.fillRect(x + 2 + ((B.t * 3) % 12), y - 2 + ((B.t * 7) % 16), 1, 1); ctx.fillRect(x + ((B.t * 5) % 16), y + ((B.t * 11) % 16), 1, 1); }
   if (p.st.sleep && (B.t >> 4) % 2) text('z', x + 12, y - 8, '#f8f8f8');
+  if (p.st.stop && (B.t >> 4) % 2) { ctx.strokeStyle = '#a0a0f8'; ctx.strokeRect(x - 1, y - 1, 18, 18); }
+  if (p.st.berserk && (B.t >> 3) % 2) { ctx.fillStyle = '#f83800'; ctx.fillRect(x + 12, y - 3, 2, 2); }
+
   if (p.st.poison && (B.t >> 3) % 4 === 0) { ctx.fillStyle = '#b040f0'; ctx.fillRect(x + 4, y - 2, 2, 2); }
   if (p.st.protect && (B.t >> 2) % 8 === 0) { ctx.strokeStyle = '#f8f0a0'; ctx.strokeRect(x - 1, y - 1, 18, 18); }
   if (B.cover && B.cover.on === p && (B.t >> 3) % 2) { ctx.fillStyle = '#f8f0b0'; ctx.fillRect(x + 7, y - 4, 2, 2); }
@@ -912,6 +1203,8 @@ function drawFx() {
       case 'holy': { ctx.fillStyle = `rgba(252,252,252,${1 - k})`; ctx.fillRect(x - 2, y - 30, 4, 50); ctx.fillRect(x - 14, y - 6, 28, 4); break; }
       case 'star': { for (let i = 0; i < 6; i++) { const yy = ((e.t * 4 + i * 23) % 120) - 20; ctx.fillStyle = i % 2 ? '#fcfc80' : '#f8a0a0'; ctx.fillRect(x - 30 + i * 12 + yy * 0.3, yy, 4, 4); } if (k > 0.7) { ctx.fillStyle = `rgba(255,255,255,${(k - 0.7) * 2})`; ctx.fillRect(0, 0, W, FIELD_H); } break; }
       case 'cast': { ctx.strokeStyle = '#fcfcfc'; for (let i = 0; i < 4; i++) { const a = i * 1.57 + e.t * 0.3, r = 12 - k * 10; ctx.fillStyle = '#fcfcfc'; ctx.fillRect(x + Math.cos(a) * r, y + Math.sin(a) * r, 2, 2); } break; }
+      case 'wind': { ctx.strokeStyle = '#d8f8d8'; ctx.lineWidth = 1; for (let i = 0; i < 4; i++) { const a = e.t * 0.35 + i * 1.6, r = 6 + i * 4; ctx.beginPath(); ctx.arc(x, y, r, a, a + 2.2); ctx.stroke(); } ctx.fillStyle = '#78d878'; for (let i = 0; i < 5; i++) ctx.fillRect(x - 14 + ((e.t * 4 + i * 11) % 28), y - 10 + ((i * 7) % 20), 3, 1); break; }
+      case 'song': { for (let i = 0; i < 4; i++) { const yy = y + 8 - ((e.t * 1.2 + i * 8) % 28), xx = x - 10 + i * 7 + Math.sin(e.t / 5 + i) * 3; ctx.fillStyle = i % 2 ? '#f8d878' : '#a0e0f8'; ctx.fillRect(xx, yy, 2, 4); ctx.fillRect(xx + 2, yy - 2, 2, 1); ctx.fillRect(xx - 2, yy + 3, 3, 2); } break; }
       default: break;
     }
   }

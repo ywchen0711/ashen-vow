@@ -2,10 +2,10 @@
 // doors, story triggers, random encounters and the airship.
 import { ctx, W, H, canvas, text, textW, windowBox } from './gfx.js';
 import { renderMap, solidKind, WREN } from './tiles.js';
-import { sprite } from './sprites.js';
+import { sprite, recolor } from './sprites.js';
 import { input } from './input.js';
 import { sfx } from './audio.js';
-import { S, spriteOf } from './party.js';
+import { S, spriteOf, stats } from './party.js';
 import { UI } from './ui.js';
 import { L } from './i18n.js';
 
@@ -19,7 +19,7 @@ export const F = {
   p: { x: 0, y: 0, px: 0, py: 0, dir: 'd', moving: false },
   trail: [], frame: 0, cam: { x: 0, y: 0 }, banner: 0, encCount: 20,
   busy: false, flying: false, shake: 0,
-  onStep: null, onEncounter: null, onWarp: null, onMenu: null, runScript: null,
+  onStep: null, onEncounter: null, onWarp: null, onMenu: null, runScript: null, onAltitude: null, onDig: null, onNoLand: null,
 };
 
 export function loadMap(id, x, y, dir = 'd') {
@@ -38,6 +38,8 @@ export function loadMap(id, x, y, dir = 'd') {
   built.kinds = kinds; built.tile = (X, Y) => grid[Y * built.w + X];
   F.gfx = renderMap(built);
   F.ents = built.ents.map((e) => ({ ...e }));
+  // people who only turn up in some parts of the story
+  if (def.extra) for (const e of def.extra(S.flags)) F.ents.push({ type: 'npc', ...e });
   for (const e of F.ents) {
     e.px = e.x * 16; e.py = e.y * 16;
     if (e.type === 'chest' && S.flags['chest:' + e.id]) e.open = true;
@@ -101,7 +103,8 @@ function finishStep() {
   const zone = F.map.zone && F.map.zone(p.x, p.y);
   if (zone && F.onEncounter && !S.flags.noenc) {
     const k = kindAt(p.x, p.y);
-    F.encCount -= k === 'forest' || k === 'leafy' ? 1.6 : k === 'road' || k === 'dirt' ? 0.7 : 1;
+    const quiet = S.members.some((m) => m.hp > 0 && stats(m).pass.has('quiet'));
+    F.encCount -= (k === 'forest' || k === 'leafy' ? 1.6 : k === 'road' || k === 'dirt' ? 0.7 : 1) * (quiet ? 0.5 : 1);
     if (F.encCount <= 0) { F.encCount = 16 + Math.floor(Math.random() * 20); F.onEncounter(zone); }
   }
 }
@@ -115,10 +118,14 @@ function board(ship) {
   const p = F.p; p.x = ship.x; p.y = ship.y; p.px = ship.x * 16; p.py = ship.y * 16;
   F.onBoard && F.onBoard();
 }
-const LANDABLE = new Set(['grass', 'grass2', 'leafy', 'sand', 'dirt', 'road', 'earth', 'ash', 'flowers']);
+const LANDABLE = new Set(['grass', 'grass2', 'leafy', 'sand', 'dirt', 'road', 'earth', 'ash', 'flowers', 'snow', 'snowfield', 'cinder', 'swampgrass', 'bog']);
 function tryLand() {
   const p = F.p;
-  if (!LANDABLE.has(kindAt(p.x, p.y)) || entAt(p.x, p.y)) { sfx('buzz'); return; }
+  const k = kindAt(p.x, p.y);
+  const ok = F.map.landable ? F.map.landable(k) : LANDABLE.has(k);
+  if (!ok || entAt(p.x, p.y, (e) => e.type !== 'warp')) { sfx('buzz'); return; }
+  const why = F.map.noLand && F.map.noLand(p.x, p.y);
+  if (why) { sfx('buzz'); if (F.onNoLand) F.onNoLand(why); return; }
   F.flying = false;
   S.ship = { map: S.map, x: p.x, y: p.y };
   F.ents.push({ type: 'ship', x: p.x, y: p.y, px: p.x * 16, py: p.y * 16 });
@@ -174,6 +181,7 @@ export function updateField() {
     const d = input.dir();
     if (d && tryMove(d)) { /* moving */ }
     else if (input.pressed('a')) { if (F.flying) tryLand(); else interact(); }
+    else if (input.pressed('b') && F.flying && S.flags.wren2 && F.onAltitude) F.onAltitude();
     else if (input.pressed('menu')) F.onMenu && F.onMenu();
   }
   updateCam();
@@ -184,7 +192,7 @@ function interact() {
   // talk across a shop counter
   if (['counter', 'counter2'].includes(kindAt(tx, ty))) { tx += dx; ty += dy; }
   const e = F.ents.find((o) => !o.gone && o.x === tx && o.y === ty && (o.talk || ['chest', 'save', 'sign'].includes(o.type)));
-  if (!e) return;
+  if (!e) { if (F.def.world && !F.def.sky && S.inv.spade && F.onDig) F.onDig(p.x, p.y); return; }
   if (e.type === 'npc' && !e.fixed) e.dir = { u: 'd', d: 'u', l: 'r', r: 'l' }[p.dir];
   F.runScript(e.talk || e.type, e);
 }
@@ -262,7 +270,11 @@ export function drawField() {
     text(name, W / 2, 17, '#f8f8f8', { align: 'center' });
     ctx.globalAlpha = 1;
   }
-  if (F.flying && !F.busy && !UI.active) { windowBox(W - 98, H - 24, 94, 20); text(L('Z 降落', 'Z: Land'), W - 51, H - 20, '#f8f8f8', { align: 'center' }); }
+  if (F.flying && !F.busy && !UI.active) {
+    const s = S.flags.wren2 ? (F.def.sky ? L('Z 降落　X 下降', 'Z Land  X Descend') : L('Z 降落　X 上升', 'Z Land  X Ascend')) : L('Z 降落', 'Z: Land');
+    const w = textW(s) + 16;
+    windowBox(W - w - 4, H - 24, w, 20); text(s, W - 4 - w / 2, H - 20, '#f8f8f8', { align: 'center' });
+  }
 }
 function drawEnt(e, cx, cy) {
   const x = Math.round(e.px) - cx, y = Math.round(e.py) - cy;
@@ -270,7 +282,7 @@ function drawEnt(e, cx, cy) {
   switch (e.type) {
     case 'hero': case 'npc': {
       if (e.hidden || !e.sprite) return;
-      const fr = sprite(e.sprite)[e.dir || 'd'];
+      const fr = (e.lookGrey ? greySprite(e.sprite) : sprite(e.sprite))[e.dir || 'd'];
       const k = e.walking || e.walkAnim ? anim : 0;
       ctx.drawImage(shadow, x + 2, y + 13);
       if (e.ghost) ctx.globalAlpha = 0.55;
@@ -287,7 +299,14 @@ function drawEnt(e, cx, cy) {
   }
 }
 
+// the Hollowed: people whose names were taken, drawn in grey
+const greyCache = new Map();
+function greySprite(k) {
+  if (!greyCache.has(k)) { const s = sprite(k), o = {}; for (const d of ['d', 'l', 'r', 'u']) o[d] = s[d].map((f) => recolor(f, { sat: 0.08, lum: 1.05 })); greyCache.set(k, o); }
+  return greyCache.get(k);
+}
 // ---------- script helpers ----------
+
 export function walkEnt(e, path, speed = 1) {
   return new Promise((res) => {
     const steps = path.split('');

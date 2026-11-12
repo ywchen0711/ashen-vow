@@ -1,8 +1,9 @@
 // The field menu (items, magic, equipment, status, party, settings, save) and shops.
 import { ctx, W, H, text, textW, windowBox, bar } from './gfx.js';
 import { sprite } from './sprites.js';
-import { ITEMS, EQUIP, SPELLS, HEROES, BLACK, expFor, nm, ds } from './data.js';
-import { S, stats, spellsOf, callsOf, gadgetsOf, addItem, count, save, heroName, jobOf, spriteOf, isDawn, MAXPARTY } from './party.js';
+import { ITEMS, EQUIP, SPELLS, HEROES, BLACK, PASSIVES, expFor, nm, ds } from './data.js';
+import { S, stats, spellsOf, callsOf, gadgetsOf, songsOf, leapsOf, artsOf, vowsOf, skillsOf, addItem, count, save, heroName, jobOf, spriteOf, isDawn, MAXPARTY } from './party.js';
+import { bestiary, showMap } from './systems.js';
 import { menu, panel, notice, ask, pressKey } from './ui.js';
 import { sfx, vol, setVolumes, music, setMusic } from './audio.js';
 import { settings as bset } from './battle.js';
@@ -39,7 +40,7 @@ export async function fieldMenu(info) {
   let last = 0;
   for (;;) {
     const r = await menu([
-      L('道具', 'Items'), L('魔法', 'Magic'), L('裝備', 'Equip'), L('狀態', 'Status'), L('隊伍', 'Party'), L('設定', 'Config'), { label: L('記錄', 'Save'), disabled: !info.canSave },
+      L('道具', 'Items'), L('魔法', 'Magic'), L('裝備', 'Equip'), L('狀態', 'Status'), L('隊伍', 'Party'), L('設定', 'Config'), { label: L('記錄', 'Save'), disabled: !info.canSave }, L('圖鑑', 'Bestiary'),
     ], { x: 166, y: 4, w: 86, start: last });
     if (r < 0) break;
     last = r;
@@ -50,6 +51,7 @@ export async function fieldMenu(info) {
     if (r === 4) await partyMenu();
     if (r === 5) await settingsMenu();
     if (r === 6) { const ok = save(0); sfx(ok ? 'save' : 'buzz'); await notice(ok ? L('冒險已記錄。', 'Saved.') : L('無法存檔（瀏覽器不允許）。', "Can't save (the browser blocked it).")); }
+    if (r === 7) await bestiary();
   }
   close();
 }
@@ -59,24 +61,26 @@ async function itemMenu() {
     if (!list.length) { await notice(L('什麼都沒有。', 'Nothing here.')); return; }
     let desc = '';
     const close = panel(() => { windowBox(4, 190, W - 8, 30); text(desc, 12, 198); });
-    const r = await menu(list.map((id) => ({ label: nm(ITEMS[id]), right: ITEMS[id].key ? '' : S.inv[id], disabled: !ITEMS[id].use || ['dmg', 'tent'].includes(ITEMS[id].use), color: ITEMS[id].key ? '#f8e070' : undefined })), { x: 4, y: 4, w: W - 8, cols: 2, maxRows: 11, cancel: true, onMove: (i) => { const it = ITEMS[list[i]]; desc = ds(it) || (it.equip ? equipDesc(it) : ''); } });
+    const r = await menu(list.map((id) => ({ label: nm(ITEMS[id]), right: ITEMS[id].key ? '' : S.inv[id], disabled: !ITEMS[id].map && (!ITEMS[id].use || ['dmg', 'tent', 'buff', 'escape'].includes(ITEMS[id].use)), color: ITEMS[id].key ? '#f8e070' : ITEMS[id].mat ? '#c0d0a0' : undefined })), { x: 4, y: 4, w: W - 8, cols: 2, maxRows: 11, cancel: true, onMove: (i) => { const it = ITEMS[list[i]]; desc = ds(it) || (it.equip ? equipDesc(it) : ''); } });
     close();
     if (r < 0) return;
     const id = list[r], it = ITEMS[id];
+    if (it.map) { await showMap(it.map); continue; }
+    if (it.tgt === 'allies') { for (const m of [...S.members]) if (it.dead ? m.hp <= 0 : m.hp > 0) applyItem(id, m); addItem(id, -1); sfx('heal'); continue; }
     const target = await pickMember(L('給誰使用？', 'Use on whom?'), (m) => (it.use === 'revive' ? m.hp <= 0 : m.hp > 0));
     if (!target) continue;
     useItemOn(id, target);
   }
 }
-export function useItemOn(id, m) {
+function applyItem(id, m) {
   const it = ITEMS[id], s = stats(m);
   if (it.use === 'heal') m.hp = Math.min(s.maxhp, m.hp + it.power);
   if (it.use === 'mp') m.mp = Math.min(s.maxmp, m.mp + it.power);
   if (it.use === 'cure') for (const k of it.st) delete m.st[k];
   if (it.use === 'revive') m.hp = Math.max(1, Math.round(s.maxhp * it.power));
   if (it.use === 'full') { m.hp = s.maxhp; m.mp = s.maxmp; }
-  addItem(id, -1); sfx('heal');
 }
+export function useItemOn(id, m) { applyItem(id, m); addItem(id, -1); sfx('heal'); }
 const STATN = { atk: ['攻擊', 'ATK'], def: ['防禦', 'DEF'], mdef: ['魔防', 'MDEF'], mag: ['魔力', 'MAG'], str: ['力量', 'STR'], spd: ['速度', 'SPD'] };
 export const canEquip = (m, it) => {
   if (!it.equip) return false;
@@ -86,12 +90,14 @@ export const canEquip = (m, it) => {
   if (it.slot === 'armor') return H0.arm.includes(it.cls);
   return true;
 };
+const abName = (id) => (SPELLS[id] ? nm(SPELLS[id]) : PASSIVES[id] ? nm(PASSIVES[id]) : id);
 function equipDesc(it) {
   const who = Object.keys(HEROES).filter((id) => canEquip({ id }, it)).map((id) => nm(HEROES[id])).join(L('、', ', '));
   const parts = Object.entries(STATN).filter(([k]) => it[k]).map(([k, n]) => `${L(n[0], n[1])}+${it[k]}`);
-  return L(`${parts.join(' ')}　${who}`, `${parts.join(' ')}  ${who}`);
+  const extra = [...(it.pass || []).map(abName), ...(it.teach ? [L(`學：${abName(it.teach)}`, `Teaches ${abName(it.teach)}`)] : [])];
+  return L(`${parts.join(' ')} ${extra.join(' ')}　${who}`, `${parts.join(' ')} ${extra.join(' ')}  ${who}`);
 }
-const FIELD_SPELLS = new Set(['cure', 'cura', 'curaga', 'poisona', 'esuna', 'raise', 'arise']);
+const FIELD_SPELLS = new Set(['cure', 'cura', 'curaga', 'poisona', 'esuna', 'raise', 'arise', 'sanctuary', 'dawnchoir']);
 async function magicMenu() {
   const caster = await pickMember(L('誰要施法？', 'Who casts?'), (m) => m.hp > 0 && spellsOf(m).some((s) => FIELD_SPELLS.has(s)));
   if (!caster) return;
@@ -101,6 +107,11 @@ async function magicMenu() {
     const r = await menu(list.map((id) => ({ label: nm(SPELLS[id]), right: SPELLS[id].mp, disabled: !FIELD_SPELLS.has(id) || SPELLS[id].mp > caster.mp })), { x: 96, y: 40, w: 156, maxRows: 8, title: `${heroName(caster)}　MP ${caster.mp}` });
     if (r < 0) return;
     const sp = SPELLS[list[r]], st = stats(caster);
+    if (sp.tgt === 'allies') {
+      caster.mp -= sp.mp; sfx('heal');
+      for (const m of S.members) { if (sp.kind === 'revive' && m.hp <= 0) m.hp = Math.max(1, Math.round(stats(m).maxhp * sp.power)); else if (sp.kind === 'heal' && m.hp > 0) m.hp = Math.min(stats(m).maxhp, m.hp + Math.round(sp.power * (1 + st.mag / 12))); }
+      continue;
+    }
     const t = await pickMember(L('對誰施放？', 'Cast on whom?'), (m) => (sp.kind === 'revive' ? m.hp <= 0 : m.hp > 0));
     if (!t) continue;
     caster.mp -= sp.mp; sfx('heal');
@@ -159,13 +170,33 @@ async function statusMenu() {
     rows.forEach(([a, b], i) => { text(a, 14, 64 + i * 15); text(b, 130, 64 + i * 15); });
     const eq = (k) => (m.equip[k] ? nm(EQUIP[m.equip[k]]) : '──');
     ['weapon', 'armor', 'acc'].forEach((k, i) => text(eq(k), 14 + i * (en ? 80 : 76), 128, '#c0d0f8'));
-    const sp = [...spellsOf(m), ...callsOf(m), ...gadgetsOf(m)].map((s) => nm(SPELLS[s])), cols = en ? 3 : 4, cw = en ? 78 : 58;
-    if (sp.length) text(L('技能', 'Skills'), 14, 146, '#a0c0f8');
+    const sp = [...spellsOf(m), ...callsOf(m), ...gadgetsOf(m), ...songsOf(m), ...leapsOf(m), ...artsOf(m), ...vowsOf(m), ...skillsOf(m)].map((s) => nm(SPELLS[s])), cols = en ? 3 : 4, cw = en ? 78 : 58;
+    if (sp.length) text(L('技能', 'Skills') + (sp.length > 12 ? `  (${sp.length})` : ''), 14, 146, '#a0c0f8');
     for (let i = 0; i < Math.min(sp.length, 12); i++) text(sp[i], 14 + (i % cols) * cw, 162 + Math.floor(i / cols) * 15);
   });
   await pressKey();
   close();
+  await abilityPage(m);
 }
+// the second status page: every skill, the passive abilities, and what the gear is teaching
+async function abilityPage(m) {
+  const st = stats(m), en = isEn();
+  const all = [...spellsOf(m), ...callsOf(m), ...gadgetsOf(m), ...songsOf(m), ...leapsOf(m), ...artsOf(m), ...vowsOf(m), ...skillsOf(m)].map((s) => nm(SPELLS[s]));
+  const pass = [...st.pass].map((p) => nm(PASSIVES[p]));
+  const learning = ['weapon', 'armor', 'acc'].map((k) => EQUIP[m.equip[k]]).filter((it) => it && it.teach && !(m.learned || []).includes(it.teach)).map((it) => `${abName(it.teach)} ${Math.min(it.ap, (m.ap || {})[it.teach] || 0)}/${it.ap}`);
+  const close = panel(() => {
+    windowBox(4, 4, W - 8, H - 8);
+    text(`${heroName(m)}　${L('能力', 'Abilities')}`, 14, 12, '#f8e070');
+    const cols = en ? 3 : 4, cw = en ? 78 : 58;
+    for (let i = 0; i < Math.min(all.length, 24); i++) text(all[i], 14 + (i % cols) * cw, 30 + Math.floor(i / cols) * 14);
+    const y0 = 30 + Math.ceil(Math.min(all.length, 24) / cols) * 14 + 6;
+    text(L('被動', 'Passive') + '：' + (pass.join(L('、', ', ')) || '－'), 14, y0, '#c0d0f8');
+    text(L('學習中', 'Learning') + '：' + (learning.join(L('、', ', ')) || '－'), 14, y0 + 16, '#c0f8c0');
+  });
+  await pressKey();
+  close();
+}
+
 // swap members with the reserve, and change rows
 async function partyMenu() {
   for (;;) {
