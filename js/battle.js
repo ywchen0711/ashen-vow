@@ -9,6 +9,7 @@ import { MON, SPELLS, ITEMS, FSK, CMD, BLACK, nm } from './data.js';
 import { sprite, monArt, personArt, preloadMon, flash as flashArt, recolor } from './sprites.js';
 import { tileCanvas, TILES } from './tiles.js';
 import { L } from './i18n.js';
+import { statusTags, tagPages, drawTags } from './ui.js';
 
 export const settings = { mode: 'wait', speed: 3 };
 const SPEEDS = [0, 0.55, 0.75, 1, 1.3, 1.7, 2.2];
@@ -1221,7 +1222,10 @@ function drawWindows() {
     const h = p.h, s = stats(h), y = FIELD_H + 6 + i * 14;
     const active = B.menu && B.menu.p === p;
     const col = h.hp <= 0 ? '#f86060' : active ? '#f8e070' : h.hp < s.maxhp / 4 ? '#f8b800' : '#f8f8f8';
-    text(heroName(h), 100, y, col);
+    // statuses take turns with the name, about a second each
+    const tags = h.hp > 0 ? statusTags(p.st) : [], nameW = 186 - textW(`${h.hp}`) - 104;
+    const pages = tags.length ? tagPages(tags, nameW) : [], ph = Math.floor(B.t / 60) % (pages.length + 1);
+    if (ph === 0) text(heroName(h), 100, y, col); else drawTags(pages[ph - 1], 100, y, nameW);
     text(`${h.hp}`, 186, y, col, { align: 'right' });
     text(`/${s.maxhp}`, 214, y, '#c0c8f0', { align: 'right' });
     const g = p.cast ? 1 : p.gauge / 1000;
@@ -1239,7 +1243,7 @@ function drawWindows() {
       if (m.stage === 'cmd') {
         ctx.drawImage(HAND, 7 + ((B.t >> 3) % 2), FIELD_H - h + 82 + m.i * 14);
         // hints for rows and guarding
-        const hint = L('←換排　→防禦', '←Row  →Guard'), hw = textW(hint) + 14;
+        const hint = L('←換排 →防禦', '←Row →Guard'), hw = Math.min(textW(hint) + 8, 89); // stays left of the party window
         windowBox(2, FIELD_H - h + 58, hw, 18);
         text(hint, 2 + hw / 2, FIELD_H - h + 61, '#c0c8f0', { align: 'center' });
       }
@@ -1271,7 +1275,10 @@ function drawWindows() {
       const what = m.sel ? m.sel.label : '';
       const who = !m.all && show[0] ? nameOf(show[0]) : m.all ? L('全體', 'All') : '';
       const nmx = what && who ? `${what} → ${who}` : what || who;
-      if (nmx) { windowBox(W / 2 - textW(nmx) / 2 - 8, 4, textW(nmx) + 16, 20); text(nmx, W / 2, 8, '#f8f8f8', { align: 'center' }); }
+      // the target's statuses ride along in the name box
+      const tags = !m.all && show[0] && hpOf(show[0]) > 0 ? statusTags(show[0].st) : [];
+      const tw = tags.length ? Math.min(W - 24 - textW(nmx) - 6, tags.reduce((a, t) => a + textW(t.s) + 3, -3)) : 0, bw = textW(nmx) + (tw > 0 ? tw + 6 : 0);
+      if (nmx) { windowBox(W / 2 - bw / 2 - 8, 4, bw + 16, 20); text(nmx, W / 2 - bw / 2, 8, '#f8f8f8'); if (tw > 0) drawTags(tags, W / 2 - bw / 2 + textW(nmx) + 6, 8, tw); }
     }
     void p;
   }

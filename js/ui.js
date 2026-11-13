@@ -3,7 +3,34 @@
 import { ctx, W, H, text, textW, windowBox, HAND, HAND_D } from './gfx.js';
 import { input } from './input.js';
 import { sfx } from './audio.js';
-import { speaker } from './i18n.js';
+import { speaker, L } from './i18n.js';
+
+// short coloured status tags (poison, sleep...) so the panels show who is ailing at a glance
+const STTAG = {
+  poison: ['毒', 'PSN', '#c080f8'], sleep: ['眠', 'SLP', '#a0c0f8'], blind: ['盲', 'BLD', '#a8a8a8'], mute: ['默', 'MUT', '#f8a0d0'],
+  slow: ['慢', 'SLW', '#f8b060'], haste: ['快', 'HST', '#70f0f8'], protect: ['盾', 'PRT', '#f8f0a0'], ward: ['魔障', 'WRD', '#a0e0f8'],
+  regen: ['再生', 'RGN', '#80f8a0'], stop: ['停', 'STP', '#a0a0f8'], berserk: ['狂', 'BSK', '#f86040'], brk: ['防↓', 'DEF↓', '#f88060'],
+  taunt: ['挑釁', 'TNT', '#f8c060'], counter: ['架勢', 'CTR', '#f8d070'],
+};
+export function statusTags(st) { return Object.keys(st || {}).filter((k) => st[k] && STTAG[k]).map((k) => ({ s: L(STTAG[k][0], STTAG[k][1]), col: STTAG[k][2] })); }
+// split tags into pages that each fit in maxW pixels
+export function tagPages(tags, maxW) {
+  const pages = []; let cur = [], w = 0;
+  for (const t of tags) { const tw = textW(t.s); if (cur.length && w + tw > maxW) { pages.push(cur); cur = []; w = 0; } cur.push(t); w += tw + 3; }
+  if (cur.length) pages.push(cur);
+  return pages;
+}
+// draw the tags in a row; whatever does not fit becomes "+N"
+export function drawTags(tags, x, y, maxW, align = 'left') {
+  const ws = tags.map((t) => textW(t.s));
+  const total = (k) => ws.slice(0, k).reduce((a, b) => a + b + 3, 0) + (k < tags.length ? textW('+' + (tags.length - k)) : -3);
+  let n = tags.length;
+  while (n > 0 && total(n) > maxW) n--;
+  let cx = align === 'right' ? x - total(n) : x;
+  for (let i = 0; i < n; i++) { text(tags[i].s, cx, y, tags[i].col); cx += ws[i] + 3; }
+  if (n < tags.length) text('+' + (tags.length - n), cx, y, '#c0c8f0');
+  return total(n);
+}
 
 const stack = [];
 export const UI = {

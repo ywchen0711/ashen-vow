@@ -4,7 +4,7 @@ import { sprite } from './sprites.js';
 import { ITEMS, EQUIP, SPELLS, HEROES, BLACK, PASSIVES, expFor, nm, ds } from './data.js';
 import { S, stats, spellsOf, callsOf, gadgetsOf, songsOf, leapsOf, artsOf, vowsOf, skillsOf, addItem, count, save, heroName, jobOf, spriteOf, isDawn, MAXPARTY } from './party.js';
 import { bestiary, showMap } from './systems.js';
-import { menu, panel, notice, ask, pressKey } from './ui.js';
+import { menu, panel, notice, ask, pressKey, statusTags, tagPages, drawTags } from './ui.js';
 import { sfx, vol, setVolumes, music, setMusic } from './audio.js';
 import { settings as bset } from './battle.js';
 import { L, LANG, isEn, setLang } from './i18n.js';
@@ -22,6 +22,9 @@ function drawParty(x, y, w) {
     text('Lv ' + m.lv, x + w - 8, yy, '#f8e070', { align: 'right' });
     text(`HP ${m.hp}/${s.maxhp}`, x + 32, yy + 12, m.hp <= 0 ? '#f86060' : m.hp < s.maxhp / 4 ? '#f8e070' : '#f8f8f8');
     if (s.maxmp) text(`MP ${m.mp}/${s.maxmp}`, x + 32, yy + 24, '#c0d0f8');
+    // lingering statuses (poison, blind, silence) between the name and the level
+    const tags = m.hp > 0 ? statusTags(m.st) : [], nx = x + 32 + textW(heroName(m)) + 6;
+    if (tags.length) { const pages = tagPages(tags, x + w - 14 - textW('Lv ' + m.lv) - nx); drawTags(pages[Math.floor(performance.now() / 1000) % pages.length], nx, yy, 999); }
   });
 }
 async function pickMember(title, filter = () => true) {
@@ -165,6 +168,8 @@ async function statusMenu() {
     ctx.drawImage(sprite(spriteOf(m)).d[0], 14, 14);
     text(`${heroName(m)}　${L(jobOf(m)[0], jobOf(m)[1])}`, 38, 12, '#f8e070');
     text(`Lv ${m.lv}　${L(m.row === 'back' ? '後排' : '前排', m.row === 'back' ? 'Back row' : 'Front row')}`, 38, 28);
+    const tags = m.hp > 0 ? statusTags(m.st) : [], lx = 38 + textW(`Lv ${m.lv}　${L(m.row === 'back' ? '後排' : '前排', m.row === 'back' ? 'Back row' : 'Front row')}`) + 10;
+    if (tags.length) drawTags(tags, lx, 28, W - 14 - lx);
     text(`${L('經驗', 'EXP')} ${m.exp}`, 14, 46); text(`${L('下一級', 'Next')} ${Math.max(0, expFor(m.lv + 1) - m.exp)}`, 130, 46);
     const rows = [[`HP ${m.hp}/${st.maxhp}`, `MP ${m.mp}/${st.maxmp}`], [`${L('攻擊', 'ATK')} ${st.atk}`, `${L('防禦', 'DEF')} ${st.def}`], [`${L('魔力', 'MAG')} ${st.mag}`, `${L('魔防', 'MDEF')} ${st.mdef}`], [`${L('力量', 'STR')} ${st.str}`, `${L('速度', 'SPD')} ${st.spd}`]];
     rows.forEach(([a, b], i) => { text(a, 14, 64 + i * 15); text(b, 130, 64 + i * 15); });
