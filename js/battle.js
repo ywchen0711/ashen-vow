@@ -1231,7 +1231,8 @@ function drawWindows() {
   const m = B.menu;
   if (m) {
     const p = m.p;
-    if (m.stage === 'cmd' || m.stage === 'list' || m.stage === 'target') {
+    // while picking a target only the hand and a name box are drawn, so nothing covers the field
+    if (m.stage === 'cmd' || m.stage === 'list') {
       const n = m.cmds.length, h = n * 14 + 10;
       windowBox(2, FIELD_H - h + 76, 76, h);
       m.cmds.forEach((c, i) => text(L(CMD[c][0], CMD[c][1]), 22, FIELD_H - h + 81 + i * 14, '#f8f8f8'));
@@ -1243,7 +1244,7 @@ function drawWindows() {
         text(hint, 2 + hw / 2, FIELD_H - h + 61, '#c0c8f0', { align: 'center' });
       }
     }
-    if (m.stage === 'list' || (m.stage === 'target' && m.sel)) {
+    if (m.stage === 'list') {
       const list = m.list || [], rows = Math.ceil(list.length / 2), vis = Math.min(rows, 6);
       const sc = Math.max(0, Math.min(Math.floor(m.li / 2) - vis + 1, rows - vis));
       m.scroll = Math.max(sc, Math.min(m.scroll || 0, Math.floor(m.li / 2)));
@@ -1267,7 +1268,10 @@ function drawWindows() {
         const hx = t.kind === 'hero' ? x - 22 : x - (t.w / 2) - 12;
         if ((B.t >> 3) % 2 || !m.all) ctx.drawImage(HAND, Math.max(0, hx) + ((B.t >> 3) % 2), y - 5);
       }
-      if (!m.all && show[0]) { const nmx = nameOf(show[0]); windowBox(W / 2 - textW(nmx) / 2 - 8, 4, textW(nmx) + 16, 20); text(nmx, W / 2, 8, '#f8f8f8', { align: 'center' }); }
+      const what = m.sel ? m.sel.label : '';
+      const who = !m.all && show[0] ? nameOf(show[0]) : m.all ? L('全體', 'All') : '';
+      const nmx = what && who ? `${what} → ${who}` : what || who;
+      if (nmx) { windowBox(W / 2 - textW(nmx) / 2 - 8, 4, textW(nmx) + 16, 20); text(nmx, W / 2, 8, '#f8f8f8', { align: 'center' }); }
     }
     void p;
   }
