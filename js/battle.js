@@ -9,7 +9,7 @@ import { MON, SPELLS, ITEMS, FSK, CMD, BLACK, nm } from './data.js';
 import { sprite, monArt, personArt, preloadMon, flash as flashArt, recolor } from './sprites.js';
 import { tileCanvas, TILES } from './tiles.js';
 import { L } from './i18n.js';
-import { statusTags, tagPages, drawTags } from './ui.js';
+import { statusTags, tagPages, drawTags, fit, wrap } from './ui.js';
 
 export const settings = { mode: 'wait', speed: 3 };
 const SPEEDS = [0, 0.55, 0.75, 1, 1.3, 1.7, 2.2];
@@ -1215,7 +1215,8 @@ function drawWindows() {
   windowBox(0, FIELD_H, 92, H - FIELD_H);
   const names = [];
   for (const f of liveFoes()) { const e = names.find((n) => n.n === f.name); if (e) e.c++; else names.push({ n: f.name, c: 1 }); }
-  names.slice(0, 5).forEach((n, i) => { text(n.n.length > 5 && n.c > 1 ? n.n.slice(0, 5) : n.n, 8, FIELD_H + 7 + i * 14, '#f8f8f8'); if (n.c > 1) text(String(n.c), 86, FIELD_H + 7 + i * 14, '#f8f8f8', { align: 'right' }); });
+  // a long name is shortened with "…" so it stays inside the window and clear of the count
+  names.slice(0, 5).forEach((n, i) => { text(fit(n.n, n.c > 1 ? 70 : 80), 8, FIELD_H + 7 + i * 14, '#f8f8f8'); if (n.c > 1) text(String(n.c), 86, FIELD_H + 7 + i * 14, '#f8f8f8', { align: 'right' }); });
   // the party
   windowBox(92, FIELD_H, W - 92, H - FIELD_H);
   B.party.forEach((p, i) => {
@@ -1223,10 +1224,11 @@ function drawWindows() {
     const active = B.menu && B.menu.p === p;
     const col = h.hp <= 0 ? '#f86060' : active ? '#f8e070' : h.hp < s.maxhp / 4 ? '#f8b800' : '#f8f8f8';
     // statuses take turns with the name, about a second each
-    const tags = h.hp > 0 ? statusTags(p.st) : [], nameW = 186 - textW(`${h.hp}`) - 104;
+    // HP ends where the "/max" begins, so four-digit numbers never overlap
+    const hpX = 214 - textW(`/${s.maxhp}`), tags = h.hp > 0 ? statusTags(p.st) : [], nameW = hpX - textW(`${h.hp}`) - 104;
     const pages = tags.length ? tagPages(tags, nameW) : [], ph = Math.floor(B.t / 60) % (pages.length + 1);
-    if (ph === 0) text(heroName(h), 100, y, col); else drawTags(pages[ph - 1], 100, y, nameW);
-    text(`${h.hp}`, 186, y, col, { align: 'right' });
+    if (ph === 0) text(fit(heroName(h), nameW), 100, y, col); else drawTags(pages[ph - 1], 100, y, nameW);
+    text(`${h.hp}`, hpX, y, col, { align: 'right' });
     text(`/${s.maxhp}`, 214, y, '#c0c8f0', { align: 'right' });
     const g = p.cast ? 1 : p.gauge / 1000;
     bar(218, y + 5, 32, g * 100, 100, p.cast ? '#f8a0f8' : g >= 1 ? '#f8e070' : '#58c8f8');
@@ -1252,16 +1254,17 @@ function drawWindows() {
       const list = m.list || [], rows = Math.ceil(list.length / 2), vis = Math.min(rows, 6);
       const sc = Math.max(0, Math.min(Math.floor(m.li / 2) - vis + 1, rows - vis));
       m.scroll = Math.max(sc, Math.min(m.scroll || 0, Math.floor(m.li / 2)));
-      const top = 26, hh = vis * 14 + 10;
+      // the explanation under the list wraps; the list moves up when needed so both stay above the party window
+      const sel = list[m.li], sd = sel && (sel.item ? ITEMS[sel.id] : SPELLS[sel.id]), dl = sd && sd.d ? wrap(L(sd.d[0], sd.d[1]), 232) : [];
+      const hh = vis * 14 + 10, dh = dl.length ? dl.length * 13 + 7 : 0, top = Math.max(4, Math.min(26, FIELD_H - hh - dh));
       windowBox(4, top, 248, hh);
       for (let k = m.scroll * 2; k < Math.min(list.length, (m.scroll + vis) * 2); k++) {
         const it = list[k], cx = 22 + (k % 2) * 120, cy = top + 5 + (Math.floor(k / 2) - m.scroll) * 14;
-        text(it.label, cx, cy, it.disabled ? '#8088a8' : '#f8f8f8');
+        text(fit(it.label, 96 - textW(String(it.right))), cx, cy, it.disabled ? '#8088a8' : '#f8f8f8');
         text(String(it.right), cx + 100, cy, it.disabled ? '#8088a8' : '#f8f8f8', { align: 'right' });
       }
       if (m.stage === 'list') ctx.drawImage(HAND, 8 + (m.li % 2) * 120 + ((B.t >> 3) % 2), top + 6 + (Math.floor(m.li / 2) - m.scroll) * 14);
-      const it = list[m.li];
-      if (m.stage === 'list' && it) { const d = it.item ? ITEMS[it.id] : SPELLS[it.id]; const desc = d && d.d ? L(d.d[0], d.d[1]) : ''; if (desc) { windowBox(4, top + hh, 248, 20); text(desc, 12, top + hh + 4, '#f8f8f8'); } }
+      if (dl.length) { windowBox(4, top + hh, 248, dh); dl.forEach((l, i) => text(l, 12, top + hh + 4 + i * 13, '#f8f8f8')); }
     }
     if (m.stage === 'target') {
       const list = targetList(m);
@@ -1274,7 +1277,7 @@ function drawWindows() {
       }
       const what = m.sel ? m.sel.label : '';
       const who = !m.all && show[0] ? nameOf(show[0]) : m.all ? L('全體', 'All') : '';
-      const nmx = what && who ? `${what} → ${who}` : what || who;
+      const nmx = fit(what && who ? `${what} → ${who}` : what || who, W - 24);
       // the target's statuses ride along in the name box
       const tags = !m.all && show[0] && hpOf(show[0]) > 0 ? statusTags(show[0].st) : [];
       const tw = tags.length ? Math.min(W - 24 - textW(nmx) - 6, tags.reduce((a, t) => a + textW(t.s) + 3, -3)) : 0, bw = textW(nmx) + (tw > 0 ? tw + 6 : 0);
@@ -1288,6 +1291,6 @@ function drawWindows() {
     if (B.banner.t > 50) B.banner = null;
     else { const w = textW(B.banner.s) + 20; windowBox(W / 2 - w / 2, 4, w, 20); text(B.banner.s, W / 2, 8, '#f8f8f8', { align: 'center' }); }
   }
-  if (B.msg) { const lines = B.msg.s.split('\n'); windowBox(4, 4, W - 8, 10 + lines.length * 14); lines.forEach((l, i) => text(l, 12, 9 + i * 14, '#f8f8f8')); }
+  if (B.msg) { const lines = B.msg.s.split('\n').flatMap((l) => wrap(l, W - 24)); windowBox(4, 4, W - 8, 10 + lines.length * 14); lines.forEach((l, i) => text(l, 12, 9 + i * 14, '#f8f8f8')); }
   if (B.hold > 10) { windowBox(W - 80, FIELD_H - 22, 76, 20); text(L('逃跑中……', 'Fleeing...'), W - 42, FIELD_H - 18, '#f8f8f8', { align: 'center' }); }
 }
