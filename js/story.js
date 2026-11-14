@@ -400,6 +400,7 @@ def('warden', async (E) => {
 
 // ---------- chapter 8: the Starwell ----------
 def('morvane_final', async (E) => {
+  S.flags.morvane_dead = true;
   E.music('villain');
   await E.say('莫凡', L('來了啊，海爾。看，四枚泉鏡已經嵌進井壁了。', "So you came, Hale. Look: the four lenses are set into the walls of the well."));
   await E.say('莫凡', L('二十年前，我在這口井邊聽見了祂的聲音。祂說，只要讓祂回到天上，我就能永遠不死，永遠不被遺忘。', 'Twenty years ago, beside this well, I heard its voice. It said that if I helped it back into the sky, I would never die, and never be forgotten.'));
@@ -411,6 +412,7 @@ def('morvane_final', async (E) => {
   await E.say('莫凡', L('不……燼月……大人……我還……', 'No... my lord Ember... I still...'));
   await E.say('燼月', L('……沒用的容器。', '...A useless vessel.'));
   E.flash('#f83800', 40); E.sfx('fire');
+  E.removeEnt('morvane_w');
   await E.say(null, L('莫凡被火焰吞沒了。井底，巨大的紅光睜開了眼睛。', 'Morvane is swallowed by flame. At the bottom of the well, a vast red light opens its eyes.'));
   await E.say('燼月', L('小小的光啊。我燃燒了一萬年，只為了回到天上。你們要擋在我面前嗎？', 'Little lights. I have burned for ten thousand years only to return to the sky. Will you stand in my way?'));
   await E.say('海爾', L('曾經，我的劍也只會燃燒。但現在不同了。', 'Once, my sword knew only how to burn. Not anymore.'));

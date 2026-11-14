@@ -270,8 +270,8 @@ def('well2', {
     '&&&&&&&o&&&ooo&&&o&&&&&&',
     '&&&&&&&ooooo9ooooo&&&&&&',
     '&&&&&&&&&&&ooo&&&&&&&&&&',
-    '&&&&&&&&&&&o4o&&&&&&&&&&',
-    '&&&&&&&&&ooooooo&&&&&&&&',
+    '&&&&&&&&&&&444&&&&&&&&&&',
+    '&&&&&&&&&ooo6ooo&&&&&&&&',
     '&&&&&&&&&ooooooo&&&&&&&&',
     '&&&&&&&&&ooo5ooo&&&&&&&&',
     f.cleared ? '&&&&&&&&&ooo^ooo&&&&&&&&' : '&&&&&&&&&ooooooo&&&&&&&&',
@@ -283,6 +283,7 @@ def('well2', {
     '3': chest('darkrock', 'w2_b', 'ribbon'),
     '9': save('darkrock'),
     '4': trig('darkrock', 'morvane_final', { once: 'morvane_dead' }),
+    '6': npc('darkrock', 'morvane_w', 'morvane', 'morvane_final', { dir: 'u', fixed: true, cond: (fl) => !fl.morvane_dead }),
     '5': { k: 'darkrock', e: { type: 'npc', id: 'heart', sprite: null, talk: null, cond: () => true } },
   }, { id: 'well2', zone: (x, y) => (y < 10 ? 'well' : null), dark: 0.35 }),
 });
