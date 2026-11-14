@@ -209,7 +209,7 @@ def('varncastle', {
     'W.T.......====.......T.W',
     'WWWWWWWWWWW<<WWWWWWWWWWW',
   ], {
-    '1': { k: 'bluefloor', e: (x, y) => [{ type: 'npc', id: 'king', sprite: 'king', x, y, dir: 'd', talk: 'king', cond: (f) => !f.ch1_done || f.king_freed }, { type: 'npc', id: 'morvane', sprite: 'morvane', x: x + 2, y: y + 1, dir: 'd', talk: 'morvane_hall', cond: (f) => !f.ch1_done }] },
+    '1': { k: 'bluefloor', e: (x, y) => [{ type: 'npc', id: 'king', sprite: 'king', x, y, dir: 'd', talk: 'king', cond: (f) => !f.ch1_done || f.spire_done }, { type: 'npc', id: 'morvane', sprite: 'morvane', x: x + 2, y: y + 1, dir: 'd', talk: 'morvane_hall', cond: (f) => !f.ch1_done }] },
     '9': save('bluefloor'),
     '0': warp('bstairs', 'well1', 11, 2, 'd'),
     '^': warp('bstairs', 'barracks1', 13, 19, 'u', { need: (fl) => fl.p2_brin, msg: () => L('兵營的門鎖著。', 'The barracks door is locked.') }),
