@@ -1,6 +1,7 @@
 // Part II, "The Hush": eight new chapters, an episode for every friend, side stories and the
 // Starwell Abyss after the end. Chinese and English, like story.js.
 import { L } from './i18n.js';
+import { K } from './input.js';
 import { S, member, stats, addItem, fullHeal } from './party.js';
 import { ITEMS, SHOPS, nm } from './data.js';
 import { SCRIPTS } from './story.js';
@@ -41,7 +42,7 @@ export function hint() {
   if (!f.p2_wind) return L('齒輪工坊在東南外海的燼落島上。', 'The Gearworks is on Emberfall, the burning isle out in the south-east sea.');
   if (!f.p2_brin) return L('荊誓兵占領了北方的灰岩堡。去奪回來吧。', 'The Thornsworn have taken Grayhold in the north. Win it back.');
   if (!f.p2_hale) return L('瓦恩城東側房間的樓梯通往舊兵營。', 'The stairs in the east room of Castle Varn lead down to the old barracks.');
-  if (!f.p2_sky) return L('在飛空艇上按 X 飛上雲海，到天棧找長老，再去風暴巨鵬之巢。', 'Press X aboard the Wren to climb to the Cloud Sea. Find the elder in Skyreach, then the Stormroc\'s Aerie.');
+  if (!f.p2_sky) return K(L('在飛空艇上按 X 飛上雲海，到天棧找長老，再去風暴巨鵬之巢。', 'Press X aboard the Wren to climb to the Cloud Sea. Find the elder in Skyreach, then the Stormroc\'s Aerie.'));
   if (!f.p2_belltoll) return L('灰霧散開了。去東北群島的鐘鳴村吧。', 'The mist has parted. Go to Belltoll in the north-east isles.');
   if (!f.p2_bell) return L('鐘鳴村北邊的鐘樓。讓大鐘再響一次。', 'The Bell Tower north of Belltoll. Make the Great Bell ring again.');
   if (!f.p2_end) return L('蒼白高塔從鐘鳴村南邊的海中升起了。', 'The Pale Spire has risen from the sea south of Belltoll.');
@@ -383,7 +384,7 @@ def('gw_colossus', async (E) => {
   E.give('skycore');
   S.flags.p2_wind = true; S.flags.wren2 = true;
   E.sfx('fanfare');
-  await E.say(null, L('風之泉鏡回到了祭壇，重新亮了起來！\n得到了「天空核心」！鷦鷯號可以飛上雲海了（飛行時按 X）。', 'The Wind Lens is home and shines again!\nYou got the Sky Core! The Wren can now climb to the Cloud Sea (press X in flight).'));
+  await E.say(null, K(L('風之泉鏡回到了祭壇，重新亮了起來！\n得到了「天空核心」！鷦鷯號可以飛上雲海了（飛行時按 X）。', 'The Wind Lens is home and shines again!\nYou got the Sky Core! The Wren can now climb to the Cloud Sea (press X in flight).')));
   await E.say(null, L('朵琳做好了「星爆彈」！柯溫的最後設計。\n紅隼港的霍伯開始幫忙鍛造了。', 'Dorrin built a Starburst, Corwin\'s last design!\nHob in Kestrel can now forge for you.'));
   await E.say('伊爾賽', L('四枚泉鏡都亮了。……可是我的鈴聲，還是傳不到鐘鳴村。北方的灰霧太濃了。', 'All four lenses shine. ...But my bell still can\'t be heard in Belltoll. The northern mist is too thick.'));
   if (has('brin')) await E.say('布琳', L('海爾，瓦恩送來了信鴿。……灰岩堡被「荊誓兵」占領了。是莫凡留下來的死忠部下。', 'Hale, a pigeon from Varn. ...Grayhold has been seized by the Thornsworn. Morvane\'s last loyal men.'));
@@ -463,7 +464,7 @@ def('br_legion', async (E) => {
   E.sfx('fanfare');
   await E.say(null, L('海爾立下了新的誓約！\n可以使用「誓約」：聖光斬、盾牆、破曉。', 'Hale swore a new vow!\nHe can now use Vow: Holy Blade, Shield Wall and Dawnbreak.'));
   await E.say('伊爾賽', L('……要穿過北方的灰霧，需要「風之真名」。只有雲海上的天棧居民知道。', '...To pierce the northern mist we need the Wind\'s Name. Only the folk of Skyreach in the Cloud Sea know it.'));
-  if (has('dorrin')) await E.say('朵琳', L('交給鷦鷯號吧！在天上按 X，就能衝上雲海！', 'Leave it to the Wren! Press X in the air and we\'ll shoot up into the Cloud Sea!'));
+  if (has('dorrin')) await E.say('朵琳', K(L('交給鷦鷯號吧！在天上按 X，就能衝上雲海！', 'Leave it to the Wren! Press X in the air and we\'ll shoot up into the Cloud Sea!')));
   await E.warp('varncastle', 18, 5, 'd');
 });
 
@@ -523,7 +524,7 @@ def('rh_digger', async (E) => {
   if (!S.inv.spade) {
     E.give('spade'); E.give('tmap1'); E.sfx('chest');
     await E.say('掘寶人', L('我年輕時是挖寶的。現在腰不行了……這把鏟子和第一張藏寶圖送你們吧。', 'I was a treasure hunter in my youth. My back\'s given out now... Have my spade and my first treasure map.'));
-    await E.say(null, L('得到了「尋寶鏟」和「藏寶圖（一）」！\n在道具裡使用藏寶圖，然後在大地圖上找到打叉的地方，按 Z 挖掘。', 'Received the Treasure Spade and Treasure Map I!\nUse a map from Items, find the X on the world map, and press Z to dig.'));
+    await E.say(null, K(L('得到了「尋寶鏟」和「藏寶圖（一）」！\n在道具裡使用藏寶圖，然後在大地圖上找到打叉的地方，按 Z 挖掘。', 'Received the Treasure Spade and Treasure Map I!\nUse a map from Items, find the X on the world map, and press Z to dig.')));
     return;
   }
   const found = [1, 2, 3, 4, 5].filter((i) => f['dug' + i]).length;

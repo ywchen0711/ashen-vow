@@ -3,7 +3,7 @@
 import { ctx, W, H, canvas, text, textW, windowBox } from './gfx.js';
 import { renderMap, solidKind, WREN } from './tiles.js';
 import { sprite, recolor } from './sprites.js';
-import { input } from './input.js';
+import { input, touchUI } from './input.js';
 import { sfx } from './audio.js';
 import { S, spriteOf, stats } from './party.js';
 import { UI } from './ui.js';
@@ -36,6 +36,8 @@ export function loadMap(id, x, y, dir = 'd') {
   }
   F.kinds = kinds; F.grid = grid;
   built.kinds = kinds; built.tile = (X, Y) => grid[Y * built.w + X];
+  // give the old map's pictures back at once: iOS limits the memory all canvases may use together
+  if (F.gfx) for (const c of [...F.gfx.frames, F.gfx.upper]) if (c) { c.width = 0; c.height = 0; }
   F.gfx = renderMap(built);
   F.ents = built.ents.map((e) => ({ ...e }));
   // people who only turn up in some parts of the story
@@ -271,7 +273,8 @@ export function drawField() {
     ctx.globalAlpha = 1;
   }
   if (F.flying && !F.busy && !UI.active) {
-    const s = S.flags.wren2 ? (F.def.sky ? L('Z 降落　X 下降', 'Z Land  X Descend') : L('Z 降落　X 上升', 'Z Land  X Ascend')) : L('Z 降落', 'Z: Land');
+    const s0 = S.flags.wren2 ? (F.def.sky ? L('Z 降落　X 下降', 'Z Land  X Descend') : L('Z 降落　X 上升', 'Z Land  X Ascend')) : L('Z 降落', 'Z: Land');
+    const s = touchUI() ? s0.replace('Z', 'A').replace('X', 'B') : s0;
     const w = textW(s) + 16;
     windowBox(W - w - 4, H - 24, w, 20); text(s, W - 4 - w / 2, H - 20, '#f8f8f8', { align: 'center' });
   }

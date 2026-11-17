@@ -1,6 +1,7 @@
 // The story: every scene, conversation and event, in Chinese and English.
 // A script is async (E, ent) => {...}; E is the toolbox main.js hands over.
 import { L } from './i18n.js';
+import { K } from './input.js';
 import { S, member, stats, isDawn } from './party.js';
 import { ITEMS, SHOPS, nm } from './data.js';
 
@@ -81,7 +82,7 @@ def('king', async (E) => {
   await E.say('布琳', L('聽說了！我跟你一起去。灰岩堡的加瑞克是我們的老朋友，送個盒子而已，就當散心吧。', "I heard! I'm coming with you. Garrick at Grayhold is an old friend. It's only a box. Think of it as a trip to clear your head."));
   await E.say(null, L('布琳加入了隊伍！', 'Brin joined the party!'));
   E.sfx('fanfare');
-  await E.say(null, L('出城往北，經過苔道洞窟就能到灰岩堡。\nC 鍵可以開啟選單，按住 X 可以跑步。', 'Leave the castle and head north through Mossway Cave to reach Grayhold.\nPress C for the menu; hold X to run.'));
+  await E.say(null, K(L('出城往北，經過苔道洞窟就能到灰岩堡。\nC 鍵可以開啟選單，按住 X 可以跑步。', 'Leave the castle and head north through Mossway Cave to reach Grayhold.\nPress C for the menu; hold X to run.')));
   S.flags.ch1_done = true;
 });
 def('morvane_hall', async (E) => { await E.say('莫凡', L('隊長，國王在等你。不要讓陛下失望喔……呵呵。', 'Captain, the King awaits. Do not disappoint His Majesty... heh heh.')); });
@@ -345,7 +346,7 @@ def('k_dorrin', async (E) => {
   S.flags.has_dorrin = true; S.flags.airship = true;
   S.ship = { map: 'world', x: 10, y: 41 };
   E.sfx('fanfare');
-  await E.say(null, L('得到了飛空艇「鷦鷯號」！\n走上船就能起飛，在空中按 Z 降落。', 'You got the airship Wren!\nStep onto it to take off; press Z in the air to land.'));
+  await E.say(null, K(L('得到了飛空艇「鷦鷯號」！\n走上船就能起飛，在空中按 Z 降落。', 'You got the airship Wren!\nStep onto it to take off; press Z in the air to land.')));
   await E.say('塔爾', L('莫凡的據點，聽說是東南外海孤島上的「荊棘高塔」。布琳一定也在那裡。', "Morvane's stronghold is said to be the Thorn Spire, on a lone island off the south-east coast. Brin must be there too."));
 });
 def('k_shop', shopTalk('kestrel', () => L('港口的工匠打造的裝備，品質保證！', 'Gear forged by the port\'s artisans. Quality guaranteed!')));

@@ -1,10 +1,10 @@
 // Boot, the main loop, title, prologue, transitions, the story toolbox, game over and the ending.
 import { ctx, W, H, canvas, text, textW, windowBox, HAND, tint } from './gfx.js';
 import * as gfx from './gfx.js';
-import { input, pollInput, endInput, setupTouch } from './input.js';
+import { input, pollInput, endInput, setupTouch, touchUI, K } from './input.js';
 import { initAudio, playMusic, stopMusic, sfx, currentSong } from './audio.js';
 import { UI, uiTick, say, talk, ask, wait, menu, notice } from './ui.js';
-import { S, reset, resetPlus, addMember, removeMember, addItem, fullHeal, save, load, hasSave, saveInfo, setSpellNamer, stats, member, spriteOf, heroName } from './party.js';
+import { S, reset, resetPlus, addMember, removeMember, addItem, fullHeal, save, load, hasSave, saveInfo, setSpellNamer, stats, member, spriteOf, heroName, dropSave } from './party.js';
 import { SPELLS, ZONES, BOSSES, BG, ITEMS, nm } from './data.js';
 import { MAPS, WORLD, DIG } from './maps.js';
 import './maps2.js';
@@ -206,7 +206,7 @@ function updateTitle() {
   if (input.pressed('b')) title.ready = false;
 }
 const titleOpts = () => {
-  const o = [{ id: 'new', label: L('新的旅程', 'New Game') }, { id: 'cont', label: L('繼續旅程', 'Continue'), disabled: !hasSave(0) }];
+  const o = [{ id: 'new', label: L('新的旅程', 'New Game') }, { id: 'cont', label: hasSave('r') ? L('從中斷處繼續', 'Resume') : L('繼續旅程', 'Continue'), disabled: !hasSave(0) && !hasSave('r') }];
   if (hasSave(1)) o.push({ id: 'plus', label: L('再一次的旅程（繼承）', 'New Game+') });
   o.push({ id: 'lang', label: LANG === 'en' ? 'Language: English' : '語言：中文' });
   return o;
@@ -249,7 +249,7 @@ function drawTitle() {
   else { bigText('灰誓騎士', W / 2, 70, [252, 252, 252], [248, 120, 88], 3); text('THE ASHEN VOW', W / 2, 120, '#f8d8a8', { align: 'center' }); }
   if (!title.ready) {
     if ((t >> 5) % 2) text('PRESS START', W / 2, 150, '#ffffff', { align: 'center' });
-    text(L('Z 決定　X 取消　C 選單', 'Z: OK   X: Cancel   C: Menu'), W / 2, 196, '#a0a0c0', { align: 'center' });
+    text((touchUI() ? L('A 決定　B 取消　選單鈕 選單', 'A: OK   B: Cancel   MENU: Menu') : L('Z 決定　X 取消　C 選單', 'Z: OK   X: Cancel   C: Menu')), W / 2, 196, '#a0a0c0', { align: 'center' });
   } else {
     const opts = titleOpts();
     const bw = Math.max(128, ...opts.map((o) => textW(o.label) + 40)), by = 136 - (opts.length - 3) * 17;
@@ -324,7 +324,9 @@ function drawIntro() {
 // ---------- continue / game over ----------
 async function continueGame() {
   await trans('out', 20);
-  if (!load(0)) { await trans('in', 10); return; }
+  const slot = hasSave('r') ? 'r' : 0;
+  if (!load(slot)) { await trans('in', 10); return; }
+  dropSave('r');
   scene = 'field';
   F.flying = false;
   loadMap(S.map, S.x, S.y, S.dir);
@@ -347,7 +349,7 @@ function drawOver() {
   ctx.globalAlpha = Math.min(1, over.t / 60);
   bigText('GAME OVER', W / 2, 80, [248, 96, 96], [160, 24, 40], 2);
   text(L('灰燼散去，誓言未竟……', 'The ashes scatter; the vow unkept...'), W / 2, 130, '#c0c0d0', { align: 'center' });
-  if (over.t > 90 && (over.t >> 5) % 2) text(L('按 Z 回到標題畫面', 'Press Z to return to the title'), W / 2, 170, '#f8f8f8', { align: 'center' });
+  if (over.t > 90 && (over.t >> 5) % 2) text(K(L('按 Z 回到標題畫面', 'Press Z to return to the title')), W / 2, 170, '#f8f8f8', { align: 'center' });
   ctx.globalAlpha = 1;
 }
 
@@ -499,6 +501,19 @@ function frame(now) {
   if (n) { draw(); gfx.present(!document.body.classList.contains('noscan')); }
   requestAnimationFrame(frame);
 }
+// iOS closes hidden tabs without warning. On a phone or tablet, hiding the page during free play keeps
+// a resume point that Continue offers next time; coming back to the page (or hiding it in a scene
+// that cannot be resumed) drops it again, so it only outlives a tab that really was closed.
+const coarse = (() => { try { return navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } })();
+const inGame = () => scene !== 'title' && scene !== 'boot';
+function suspend() {
+  if (!coarse) return;
+  if (scene === 'field' && !F.busy && !F.flying && !UI.active && !T.job) save('r');
+  else if (inGame()) dropSave('r');
+}
+addEventListener('pagehide', suspend);
+document.addEventListener('visibilitychange', () => { if (document.hidden) suspend(); else if (inGame()) dropSave('r'); });
+
 const unlock = () => initAudio();
 addEventListener('keydown', unlock); addEventListener('pointerdown', unlock); addEventListener('touchstart', unlock);
 

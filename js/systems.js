@@ -1,6 +1,6 @@
 // Part II pastimes: the bestiary, the forge, the colosseum, drake races and treasure maps.
 import { ctx, W, H, text, textW, windowBox, bar, canvas } from './gfx.js';
-import { input } from './input.js';
+import { input, touchUI, K } from './input.js';
 import { sfx } from './audio.js';
 import { UI, menu, panel, notice, ask, say, pressKey } from './ui.js';
 import { S, stats, addItem, count, heroName, fullHeal } from './party.js';
@@ -163,7 +163,7 @@ function raceScreen(rivals) {
       windowBox(4, H - 40, W - 8, 36);
       const me = lanes[0];
       text(L('體力', 'Stamina'), 12, H - 33); bar(60, H - 29, 70, me.stam * 100, 100, me.stam < 0.3 ? '#f86060' : '#78f878');
-      text(L('Z 連打奔跑　X 口哨衝刺', 'Tap Z: run  X: whistle'), 140, H - 33, '#c0c8f0');
+      text((touchUI() ? L('A 連打奔跑　B 口哨衝刺', 'Tap A: run  B: whistle') : L('Z 連打奔跑　X 口哨衝刺', 'Tap Z: run  X: whistle')), 140, H - 33, '#c0c8f0');
       bar(12, H - 14, W - 24, me.x, LEN, '#f8e070');
       if (this.t < 0) text(String(Math.ceil(-this.t / 30)), W / 2, 20, '#fcfcfc', { align: 'center' });
       else if (this.t < 30) text('GO!', W / 2, 20, '#fcfcfc', { align: 'center' });
@@ -174,7 +174,7 @@ export async function race(E) {
   const won = S.flags.cups || 0;
   const opts = CUPS.map((c, i) => ({ label: `${L(c.n[0], c.n[1])}　${c.fee}G`, disabled: i > won }));
   const k = await E.ask('龍騎賽主持', L('要參加哪一盃？', 'Which cup will you enter?'), [...opts.map((o) => o.label), L('看規則', 'Rules'), L('不了', 'Not now')]);
-  if (k === CUPS.length) { await E.say('龍騎賽主持', L('連打 Z 讓龍跑起來，可是每按一下都會消耗體力，體力用光就會跌倒！X 是口哨，每場一次，能讓龍衝刺一陣子。', 'Tap Z to make your drake run, but each tap costs stamina, and an empty drake trips! X is your whistle: once a race, it gives a burst of speed.')); return; }
+  if (k === CUPS.length) { await E.say('龍騎賽主持', K(L('連打 Z 讓龍跑起來，可是每按一下都會消耗體力，體力用光就會跌倒！X 是口哨，每場一次，能讓龍衝刺一陣子。', 'Tap Z to make your drake run, but each tap costs stamina, and an empty drake trips! X is your whistle: once a race, it gives a burst of speed.'))); return; }
   if (k < 0 || k > CUPS.length) return;
   if (opts[k].disabled) { await E.say('龍騎賽主持', L('先贏下前一盃吧！', 'Win the cup before it first!')); return; }
   const c = CUPS[k];
